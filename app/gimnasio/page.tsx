@@ -1,0 +1,1 @@
+export default function Page(){return <><h1>🏋️ Gimnasio</h1><div className="card"><p>Sesiones, ejercicios, series, repeticiones y cargas.</p><p className="muted">La conexión con Supabase se activará al configurar las variables de entorno.</p></div></>}

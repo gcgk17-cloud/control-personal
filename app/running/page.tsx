@@ -1,0 +1,1 @@
+export default function Page(){return <><h1>🏃 Running</h1><div className="card"><p>Kilómetros, ritmo, duración, desnivel y esfuerzo.</p><p className="muted">La conexión con Supabase se activará al configurar las variables de entorno.</p></div></>}

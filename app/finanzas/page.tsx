@@ -1,0 +1,1 @@
+export default function Page(){return <><h1>💳 Finanzas</h1><div className="card"><p>Cuentas, tarjetas, ingresos, gastos y compras a meses sin intereses.</p><p className="muted">La conexión con Supabase se activará al configurar las variables de entorno.</p></div></>}

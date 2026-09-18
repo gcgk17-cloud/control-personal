@@ -1,0 +1,1 @@
+export default function Page(){return <><h1>⚖️ Peso y composición</h1><div className="card"><p>Seguimiento de peso, medidas corporales y metas.</p><p className="muted">La conexión con Supabase se activará al configurar las variables de entorno.</p></div></>}

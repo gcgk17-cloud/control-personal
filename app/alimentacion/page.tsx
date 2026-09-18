@@ -1,0 +1,1 @@
+export default function Page(){return <><h1>🍎 Alimentación</h1><div className="card"><p>Registro de alimentos, porciones, calorías y macronutrientes.</p><p className="muted">La conexión con Supabase se activará al configurar las variables de entorno.</p></div></>}

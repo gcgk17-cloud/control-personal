@@ -1,0 +1,1 @@
+export default function Page(){return <><h1>📊 Reportes</h1><div className="card"><p>Análisis financiero, nutricional y deportivo.</p><p className="muted">La conexión con Supabase se activará al configurar las variables de entorno.</p></div></>}
