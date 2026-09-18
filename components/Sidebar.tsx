@@ -1,0 +1,2 @@
+import Link from 'next/link'
+export default function Sidebar(){return <aside className="side"><div className="brand">Control Personal</div><nav className="nav"><Link href="/">🏠 Inicio</Link><Link href="/finanzas">💳 Finanzas</Link><Link href="/alimentacion">🍎 Alimentación</Link><Link href="/peso">⚖️ Peso</Link><Link href="/running">🏃 Running</Link><Link href="/gimnasio">🏋️ Gimnasio</Link><Link href="/reportes">📊 Reportes</Link></nav></aside>}
