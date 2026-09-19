@@ -1,0 +1,21 @@
+CONTROL PERSONAL - PAQUETE COMPLETO
+
+Este ZIP conserva la app recibida y actualiza Alimentación.
+
+ALIMENTACIÓN INCLUYE:
+- Catálogo general ya cargado en Supabase (1000 opciones alimento/porción).
+- Búsqueda por nombre/categoría/porción.
+- Cálculo automático por cantidad.
+- Mis alimentos personales usando food_catalog.
+- Alta de alimentos frecuentes con kcal, proteína, carbohidratos y grasa por 100 g.
+- Registro mediante etiqueta de producto (100%, 75%, 50%, 25%).
+- Registro rápido por calorías conocidas.
+- Desayuno, Comida, Cena y Snack.
+- Calorías consumidas, meta y balance diario.
+- Historial del día y eliminación de registros.
+
+IMPORTANTE:
+El SQL alimentacion_1000.sql ya fue ejecutado y confirmado con 1000 registros, así que NO es necesario volver a ejecutarlo en la base actual. Se incluye solo como respaldo.
+
+PARA SUBIR:
+Puedes reemplazar el contenido del repositorio con el contenido de este ZIP. Conserva las variables de entorno que ya están configuradas en Vercel.
