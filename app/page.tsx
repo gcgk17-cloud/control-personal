@@ -46,7 +46,7 @@ export default function Page(){
  const kcal=meals.reduce((s,x)=>s+Number(x.calories||0),0)
  const runKm=runs.reduce((s,x)=>s+Number(x.distance_km||0),0)
  const weight=weights[0]?Number(weights[0].weight_kg):null
- const weightDiff=weights.length>1?weight-Number(weights[1].weight_kg):null
+ const weightDiff=weights.length>1 && weight!==null?weight-Number(weights[1].weight_kg):null
  return <AuthGate>
   <div className="dash-head"><div><h1>🏠 Inicio</h1><p className="muted">Tu situación de hoy, con prioridad en dinero.</p></div><Link className="btn" href="/finanzas">Registrar movimiento</Link></div>
 
