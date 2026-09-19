@@ -1,0 +1,8 @@
+FINANZAS V4
+1. Ejecutar supabase/finanzas_v4_cuentas.sql una sola vez.
+2. Se agregan BBVA - Cuenta de ahorro y Nu - Cuenta.
+3. Sus saldos iniciales quedan en $0 porque todavía no se proporcionaron los importes reales.
+4. Finanzas ahora muestra Dinero disponible separado de crédito disponible.
+5. Se agrega registro de ingresos/retiros por cuenta.
+6. Tarjetas muestran Próximo pago estimado y Fecha límite.
+7. BBVA queda como pendiente de calcular para el próximo ciclo; Liverpool y Mercado Pago usan sus pagos actuales cargados.
