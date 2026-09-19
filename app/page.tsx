@@ -1,26 +1,82 @@
 'use client'
 import {useEffect,useMemo,useState} from 'react'
+import Link from 'next/link'
 import AuthGate from '@/components/AuthGate'
 import {supabase} from '@/lib/supabase'
-type F={id:string,name:string,category:string,portion_label:string,portion_grams:number,kcal_per_portion:number}
+
 const TARGET=2200
+const money=(n:number)=>n.toLocaleString('es-MX',{style:'currency',currency:'MXN',maximumFractionDigits:0})
+const PLAN:any[]=[
+['2026-09-18',0,'Descanso'],['2026-09-19',12,'Tirada larga'],['2026-09-20',5,'Recuperación'],['2026-09-21',0,'Descanso'],['2026-09-22',7,'Suave'],['2026-09-23',8,'Cambios de ritmo'],['2026-09-24',6,'Suave'],['2026-09-25',0,'Descanso'],['2026-09-26',14,'Tirada larga'],['2026-09-27',5,'Recuperación'],['2026-09-28',0,'Descanso'],['2026-09-29',8,'Suave'],['2026-09-30',8,'Cuestas'],
+['2026-10-01',6,'Suave'],['2026-10-02',0,'Descanso'],['2026-10-03',16,'Tirada larga'],['2026-10-04',5,'Recuperación'],['2026-10-05',0,'Descanso'],['2026-10-06',8,'Suave'],['2026-10-07',10,'Progresivo'],['2026-10-08',7,'Suave'],['2026-10-09',0,'Descanso'],['2026-10-10',18,'Trail largo'],['2026-10-11',5,'Recuperación'],['2026-10-12',0,'Descanso'],['2026-10-13',8,'Suave'],['2026-10-14',10,'Cuestas'],['2026-10-15',7,'Suave'],['2026-10-16',0,'Descanso'],['2026-10-17',21,'Trail largo'],['2026-10-18',5,'Recuperación'],['2026-10-19',0,'Descanso'],['2026-10-20',8,'Suave'],['2026-10-21',10,'Ritmo controlado'],['2026-10-22',7,'Suave'],['2026-10-23',0,'Descanso'],['2026-10-24',24,'Trail largo'],['2026-10-25',5,'Recuperación'],['2026-10-26',0,'Descanso'],['2026-10-27',7,'Suave'],['2026-10-28',8,'Cuestas suaves'],['2026-10-29',6,'Suave'],['2026-10-30',0,'Descanso'],['2026-10-31',16,'Trail controlado'],
+['2026-11-01',5,'Recuperación'],['2026-11-02',0,'Descanso'],['2026-11-03',6,'Suave'],['2026-11-04',5,'Suave + aceleraciones'],['2026-11-05',4,'Muy suave'],['2026-11-06',0,'Descanso'],['2026-11-07',30,'CARRERA']
+]
+function localDate(d=new Date()){const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');return `${y}-${m}-${day}`}
+function monthStart(){const d=new Date();return new Date(d.getFullYear(),d.getMonth(),1).toISOString()}
+
 export default function Page(){
- const[foods,setFoods]=useState<F[]>([]),[meals,setMeals]=useState<any[]>([]),[mode,setMode]=useState('catalogo'),[q,setQ]=useState(''),[fid,setFid]=useState(''),[qty,setQty]=useState('1'),[meal,setMeal]=useState('Comida'),[pname,setPname]=useState(''),[pkcal,setPkcal]=useState(''),[fraction,setFraction]=useState('1'),[rname,setRname]=useState(''),[rkcal,setRkcal]=useState(''),[msg,setMsg]=useState('')
- async function load(){const d=new Date();d.setHours(0,0,0,0);const[a,b]=await Promise.all([supabase.from('food_reference').select('*').order('name').limit(1200),supabase.from('meals').select('*').gte('eaten_at',d.toISOString()).order('eaten_at',{ascending:false})]);setFoods((a.data||[]) as F[]);setMeals(b.data||[])}
+ const[accounts,setAccounts]=useState<any[]>([]),[tx,setTx]=useState<any[]>([]),[cards,setCards]=useState<any[]>([]),[inst,setInst]=useState<any[]>([])
+ const[meals,setMeals]=useState<any[]>([]),[weights,setWeights]=useState<any[]>([]),[runs,setRuns]=useState<any[]>([]),[gym,setGym]=useState<any[]>([])
+ async function load(){
+  const d=new Date();d.setHours(0,0,0,0)
+  const[a,t,c,i,m,w,r,g]=await Promise.all([
+   supabase.from('accounts').select('*'),
+   supabase.from('transactions').select('*').order('occurred_at',{ascending:false}).limit(500),
+   supabase.from('credit_cards').select('*'),
+   supabase.from('installments').select('*'),
+   supabase.from('meals').select('*').gte('eaten_at',d.toISOString()),
+   supabase.from('weight_logs').select('*').order('measured_at',{ascending:false}).limit(2),
+   supabase.from('running_logs').select('*').gte('run_at',d.toISOString()),
+   supabase.from('gym_logs').select('*').gte('trained_at',d.toISOString())
+  ])
+  setAccounts(a.data||[]);setTx(t.data||[]);setCards(c.data||[]);setInst(i.data||[]);setMeals(m.data||[]);setWeights(w.data||[]);setRuns(r.data||[]);setGym(g.data||[])
+ }
  useEffect(()=>{load()},[])
- const matches=useMemo(()=>{const s=q.toLowerCase().trim();return (s?foods.filter(f=>(f.name+' '+f.category+' '+f.portion_label).toLowerCase().includes(s)):foods).slice(0,100)},[q,foods])
- const f=foods.find(x=>x.id===fid), catK=f?Number(f.kcal_per_portion)*(Number(qty)||0):0, labK=(Number(pkcal)||0)*(Number(fraction)||0), total=meals.reduce((a,x)=>a+Number(x.calories||0),0)
- async function add(p:any){const{error}=await supabase.from('meals').insert(p);setMsg(error?error.message:'✓ Registro guardado');if(!error){setQ('');setFid('');setQty('1');setPname('');setPkcal('');setFraction('1');setRname('');setRkcal('');load()}}
- async function saveCat(){if(!f||+qty<=0)return setMsg('Selecciona alimento y cantidad.');add({description:f.name,meal_type:meal,entry_mode:'catalogo',portion_label:f.portion_label,quantity:+qty,grams:Number(f.portion_grams)*+qty,calories:catK})}
- async function saveLabel(){if(!pname||+pkcal<=0)return setMsg('Captura producto y kcal de la bolsa.');add({description:pname,meal_type:meal,entry_mode:'etiqueta',portion_label:'Etiqueta',quantity:+fraction,grams:null,calories:labK})}
- async function saveFast(){if(!rname||+rkcal<=0)return setMsg('Captura descripción y calorías.');add({description:rname,meal_type:meal,entry_mode:'rapido',portion_label:'Registro rápido',quantity:1,grams:null,calories:+rkcal})}
- async function del(id:string){if(confirm('¿Eliminar este registro?')){await supabase.from('meals').delete().eq('id',id);load()}}
- return <AuthGate><h1>🍎 Alimentación</h1>
- <div className="grid"><div className="card"><span className="muted">Consumidas hoy</span><div className="kpi">{Math.round(total)} kcal</div></div><div className="card"><span className="muted">Meta diaria</span><div className="kpi">{TARGET} kcal</div></div><div className="card"><span className="muted">Balance</span><div className="kpi">{Math.abs(Math.round(TARGET-total))} kcal</div><span className="muted">{total<=TARGET?'restantes':'sobre la meta'}</span></div></div>
- <div className="card section"><h3>Registrar comida</h3><div className="quick"><button className="btn" onClick={()=>setMode('catalogo')}>🔎 Catálogo</button><button className="btn secondary" onClick={()=>setMode('etiqueta')}>🏷️ Etiqueta</button><button className="btn secondary" onClick={()=>setMode('rapido')}>⚡ Rápido</button></div>
- <div className="form-row"><select className="input" value={meal} onChange={e=>setMeal(e.target.value)}><option>Desayuno</option><option>Comida</option><option>Cena</option><option>Snack</option></select></div>
- {mode==='catalogo'&&<><p className="muted">Busca arroz, taco, tortilla, pollo, fruta… Los valores son estimados.</p><div className="form-row"><input className="input" value={q} onChange={e=>{setQ(e.target.value);setFid('')}} placeholder="Buscar alimento…"/></div><div className="form-row"><select className="input" value={fid} onChange={e=>setFid(e.target.value)}><option value="">Selecciona porción</option>{matches.map(x=><option key={x.id} value={x.id}>{x.name} · {x.portion_label} · ≈{Math.round(Number(x.kcal_per_portion))} kcal</option>)}</select><input className="input" type="number" min=".1" step=".5" value={qty} onChange={e=>setQty(e.target.value)} placeholder="Cantidad"/><div className="preview">≈ {Math.round(catK)} kcal</div><button className="btn" onClick={saveCat}>Registrar</button></div></>}
- {mode==='etiqueta'&&<><p className="muted">Ejemplo: la bolsa indica 240 kcal; si comes media bolsa, selecciona 50%.</p><div className="form-row"><input className="input" value={pname} onChange={e=>setPname(e.target.value)} placeholder="Producto / presentación"/><input className="input" type="number" value={pkcal} onChange={e=>setPkcal(e.target.value)} placeholder="kcal de toda la bolsa"/><select className="input" value={fraction} onChange={e=>setFraction(e.target.value)}><option value="1">100%</option><option value=".75">75%</option><option value=".5">50%</option><option value=".25">25%</option></select><div className="preview">{Math.round(labK)} kcal</div><button className="btn" onClick={saveLabel}>Registrar</button></div></>}
- {mode==='rapido'&&<><p className="muted">Para comidas donde ya conoces las calorías aproximadas.</p><div className="form-row"><input className="input" value={rname} onChange={e=>setRname(e.target.value)} placeholder="Ej. 3 tacos de puesto"/><input className="input" type="number" value={rkcal} onChange={e=>setRkcal(e.target.value)} placeholder="Calorías"/><button className="btn" onClick={saveFast}>Registrar</button></div></>}{msg&&<p className="status">{msg}</p>}</div>
- <div className="card section"><h3>Comidas de hoy</h3><div className="table-wrap"><table><thead><tr><th>Hora</th><th>Tipo</th><th>Alimento</th><th>Porción</th><th>Calorías</th><th></th></tr></thead><tbody>{meals.length===0?<tr><td colSpan={6}>Sin registros hoy.</td></tr>:meals.map(x=><tr key={x.id}><td>{new Date(x.eaten_at).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})}</td><td>{x.meal_type||'Comida'}</td><td>{x.description||'Alimento'}</td><td>{x.quantity||1} × {x.portion_label||((x.grams??'—')+' g')}</td><td><b>{Math.round(Number(x.calories))} kcal</b></td><td><button className="btn secondary" onClick={()=>del(x.id)}>Eliminar</button></td></tr>)}</tbody></table></div></div></AuthGate>
+ const today=localDate(), plan=PLAN.find(x=>x[0]===today)
+ const cash=accounts.reduce((s,a)=>s+Number(a.balance||0),0)+tx.reduce((s,x)=>s+(x.type==='ingreso'?Number(x.amount):-Number(x.amount)),0)
+ const monthTx=tx.filter(x=>new Date(x.occurred_at)>=new Date(monthStart()))
+ const income=monthTx.filter(x=>x.type==='ingreso').reduce((s,x)=>s+Number(x.amount),0)
+ const expenses=monthTx.filter(x=>x.type==='gasto').reduce((s,x)=>s+Number(x.amount),0)
+ const balance=income-expenses
+ const debt=inst.reduce((s,i)=>s+Math.max(0,Number(i.total_amount)*(1-Number(i.paid_months)/Number(i.months))),0)
+ const monthly=inst.reduce((s,i)=>s+(Number(i.paid_months)<Number(i.months)?Number(i.total_amount)/Number(i.months):0),0)
+ const totalLimit=cards.reduce((s,c)=>s+Number(c.credit_limit||0),0)
+ const credit=Math.max(0,totalLimit-debt)
+ const nextPay=cards.filter(c=>c.payment_day).sort((a,b)=>Number(a.payment_day)-Number(b.payment_day))[0]
+ const kcal=meals.reduce((s,x)=>s+Number(x.calories||0),0)
+ const runKm=runs.reduce((s,x)=>s+Number(x.distance_km||0),0)
+ const weight=weights[0]?Number(weights[0].weight_kg):null
+ const weightDiff=weights.length>1?weight-Number(weights[1].weight_kg):null
+ return <AuthGate>
+  <div className="dash-head"><div><h1>🏠 Inicio</h1><p className="muted">Tu situación de hoy, con prioridad en dinero.</p></div><Link className="btn" href="/finanzas">Registrar movimiento</Link></div>
+
+  <h3 className="section-title">💰 Dinero</h3>
+  <div className="grid finance-grid">
+   <Link href="/finanzas" className="card kpi-card primary-kpi"><span className="muted">Dinero disponible</span><div className="kpi">{money(cash)}</div><small>Cuentas + movimientos registrados</small></Link>
+   <div className="card kpi-card"><span className="muted">Ingresos del mes</span><div className="kpi">{money(income)}</div><small>Mes actual</small></div>
+   <div className="card kpi-card"><span className="muted">Gastos del mes</span><div className="kpi">{money(expenses)}</div><small>Mes actual</small></div>
+   <div className="card kpi-card"><span className="muted">Balance del mes</span><div className="kpi">{money(balance)}</div><small>{balance>=0?'Ingresos mayores a gastos':'Gastos mayores a ingresos'}</small></div>
+  </div>
+
+  <h3 className="section-title">💳 Tarjetas y compromisos</h3>
+  <div className="grid">
+   <div className="card"><span className="muted">Deuda MSI pendiente</span><div className="kpi">{money(debt)}</div></div>
+   <div className="card"><span className="muted">Compromiso MSI mensual</span><div className="kpi">{money(monthly)}</div></div>
+   <div className="card"><span className="muted">Crédito estimado disponible</span><div className="kpi">{money(credit)}</div><small>Límites menos MSI pendientes</small></div>
+   <div className="card"><span className="muted">Próximo día de pago</span><div className="kpi">{nextPay?`Día ${nextPay.payment_day}`:'—'}</div><small>{nextPay?.name||'Sin tarjeta registrada'}</small></div>
+  </div>
+
+  <h3 className="section-title">📍 Hoy</h3>
+  <div className="grid">
+   <Link href="/alimentacion" className="card"><span className="muted">🍎 Alimentación</span><div className="kpi">{Math.round(kcal)} / {TARGET}</div><small>{Math.max(0,Math.round(TARGET-kcal))} kcal restantes</small></Link>
+   <Link href="/peso" className="card"><span className="muted">⚖️ Peso actual</span><div className="kpi">{weight?`${weight.toFixed(1)} kg`:'—'}</div><small>{weightDiff===null?'Sin comparación':`${weightDiff>0?'+':''}${weightDiff.toFixed(1)} kg vs. registro anterior`}</small></Link>
+   <Link href="/running" className="card"><span className="muted">🏃 Running</span><div className="kpi">{plan?`${runKm.toFixed(1)} / ${plan[1]} km`:`${runKm.toFixed(1)} km`}</div><small>{plan?plan[2]:'Sin plan para hoy'}</small></Link>
+   <Link href="/gimnasio" className="card"><span className="muted">🏋️ Gimnasio</span><div className="kpi">{gym.length}</div><small>{gym.length?'registros hoy':'Pendiente / sin registro'}</small></Link>
+  </div>
+
+  <div className="two">
+   <div className="card section"><h3>⚡ Accesos rápidos</h3><div className="quick"><Link className="btn" href="/finanzas">💳 Finanzas</Link><Link className="btn secondary" href="/alimentacion">🍎 Comida</Link><Link className="btn secondary" href="/running">🏃 Running</Link><Link className="btn secondary" href="/peso">⚖️ Peso</Link></div></div>
+   <div className="card section"><h3>Resumen financiero</h3><p><b>{cards.length}</b> tarjetas registradas</p><p><b>{inst.filter(i=>Number(i.paid_months)<Number(i.months)).length}</b> compras MSI activas</p><p className="muted">Los importes se actualizan con tus registros en Finanzas.</p></div>
+  </div>
+ </AuthGate>
 }
