@@ -19,13 +19,25 @@ export default function Page(){
   if(!card||+amount<=0)return setMsg('Selecciona tarjeta y monto.')
   const c=cards.find(x=>x.id===card); if(!c)return
   const a=+amount
-  const delta=kind==='cargo'?a:-a
-  const newBalance=Math.max(0,Number(c.current_balance||0)+delta)
-  const favorable=Math.max(0,Number(c.favorable_balance||0)+(kind==='cargo'?-a:a)-Math.max(0,a-Number(c.current_balance||0)))
+  const oldDebt=Number(c.current_balance||0)
+  const oldFav=Number(c.favorable_balance||0)
+  let newBalance=oldDebt
+  let favorable=oldFav
+  if(kind==='cargo'){
+   const useFav=Math.min(favorable,a)
+   favorable-=useFav
+   newBalance+=a-useFav
+  }else{
+   const reduceDebt=Math.min(newBalance,a)
+   newBalance-=reduceDebt
+   favorable+=a-reduceDebt
+  }
   const available=Math.max(0,Number(c.credit_limit||0)-newBalance)
+  const oldEstimate=Number(c.estimated_next_payment||0)
+  const estimatedNext=Math.max(0,oldEstimate+(kind==='cargo'?a:-a))
   const{error}=await supabase.from('card_transactions').insert({card_id:card,type:kind,amount:a,description:desc})
   if(error)return setMsg(error.message)
-  await supabase.from('credit_cards').update({current_balance:newBalance,available_credit:available,favorable_balance:favorable,last_updated:new Date().toISOString()}).eq('id',card)
+  await supabase.from('credit_cards').update({current_balance:newBalance,available_credit:available,favorable_balance:favorable,estimated_next_payment:estimatedNext,last_updated:new Date().toISOString()}).eq('id',card)
   setAmount('');setDesc('');setMsg('✓ Movimiento guardado');load()
  }
  const totalDebt=cards.reduce((s,c)=>s+Number(c.current_balance||0),0)
@@ -51,8 +63,8 @@ export default function Page(){
    </div>{msg&&<p className="status">{msg}</p>}
   </div>
 
-  <div className="card section"><h3>Tarjetas</h3><div className="table-wrap"><table><thead><tr><th>Tarjeta</th><th>Límite</th><th>Deuda actual</th><th>Disponible</th><th>Saldo a favor</th><th>Último corte</th><th>Pago sin intereses</th></tr></thead><tbody>
-   {cards.map(c=><tr key={c.id}><td><b>{c.name}</b></td><td>{money(c.credit_limit)}</td><td>{money(c.current_balance)}</td><td>{money(c.available_credit ?? Number(c.credit_limit)-Number(c.current_balance))}</td><td>{money(c.favorable_balance)}</td><td>{c.statement_date?new Date(c.statement_date+'T12:00:00').toLocaleDateString('es-MX'):'—'}</td><td>{money(c.no_interest_payment)}</td></tr>)}
+  <div className="card section"><h3>Tarjetas</h3><div className="table-wrap"><table><thead><tr><th>Tarjeta</th><th>Límite</th><th>Deuda actual</th><th>Disponible</th><th>Saldo a favor</th><th>Próximo pago estimado</th><th>Fecha límite</th><th>Último corte</th><th>Pago sin intereses</th></tr></thead><tbody>
+   {cards.map(c=><tr key={c.id}><td><b>{c.name}</b></td><td>{money(c.credit_limit)}</td><td>{money(c.current_balance)}</td><td>{money(c.available_credit ?? Number(c.credit_limit)-Number(c.current_balance))}</td><td>{money(c.favorable_balance)}</td><td><b>{Number(c.estimated_next_payment||0)>0?money(c.estimated_next_payment):'Pendiente'}</b></td><td>{c.due_date?new Date(c.due_date+'T12:00:00').toLocaleDateString('es-MX'):'—'}</td><td>{c.statement_date?new Date(c.statement_date+'T12:00:00').toLocaleDateString('es-MX'):'—'}</td><td>{money(c.no_interest_payment)}</td></tr>)}
   </tbody></table></div></div>
 
   <div className="card section"><h3>Movimientos recientes de tarjetas</h3><div className="table-wrap"><table><thead><tr><th>Fecha</th><th>Tarjeta</th><th>Tipo</th><th>Descripción</th><th>Monto</th></tr></thead><tbody>

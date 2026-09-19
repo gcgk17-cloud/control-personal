@@ -1,0 +1,14 @@
+FINANZAS V3
+
+1. Ejecuta supabase/finanzas_v3.sql en Supabase > SQL Editor.
+2. Sube esta carpeta a GitHub.
+3. Vercel desplegará automáticamente.
+
+Cambios:
+- Nueva columna: Próximo pago estimado.
+- Nueva columna visible: Fecha límite.
+- Liverpool: próximo pago estimado $3,933.57, límite 27/09/2026.
+- Mercado Pago: próximo pago estimado $3,210.32, límite 07/10/2026.
+- BBVA: estimación pendiente hasta cargar movimientos del nuevo ciclo.
+- Los cargos aumentan el próximo pago estimado; pagos/abonos lo reducen.
+- Se corrigió la lógica de saldo a favor: un pago primero liquida deuda y solo el excedente queda a favor; un cargo consume primero el saldo a favor.
