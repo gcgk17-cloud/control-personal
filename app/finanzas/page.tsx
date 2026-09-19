@@ -5,23 +5,70 @@ import {supabase} from '@/lib/supabase'
 
 const money=(n:number)=>Number(n||0).toLocaleString('es-MX',{style:'currency',currency:'MXN'})
 const dateMX=(d:any)=>d?new Date(String(d).slice(0,10)+'T12:00:00').toLocaleDateString('es-MX'):'—'
+const isoLocal=(d:Date)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+
+function fridayOfWeek(now=new Date()){
+  const d=new Date(now.getFullYear(),now.getMonth(),now.getDate())
+  const day=d.getDay()
+  const diff=day>=5 ? day-5 : day+2
+  d.setDate(d.getDate()-diff)
+  return d
+}
+function mondayOfWeek(now=new Date()){
+  const d=new Date(now.getFullYear(),now.getMonth(),now.getDate())
+  const day=d.getDay()
+  d.setDate(d.getDate()-(day===0?6:day-1))
+  return d
+}
 
 export default function Page(){
  const[cards,setCards]=useState<any[]>([])
  const[ctx,setCtx]=useState<any[]>([])
  const[inst,setInst]=useState<any[]>([])
  const[accounts,setAccounts]=useState<any[]>([])
+ const[transactions,setTransactions]=useState<any[]>([])
  const[card,setCard]=useState(''),[kind,setKind]=useState('cargo'),[amount,setAmount]=useState(''),[desc,setDesc]=useState(''),[msg,setMsg]=useState('')
  const[account,setAccount]=useState(''),[accountKind,setAccountKind]=useState('ingreso'),[accountAmount,setAccountAmount]=useState(''),[accountDesc,setAccountDesc]=useState(''),[accountMsg,setAccountMsg]=useState('')
 
- async function load(){
-  const[c,t,i,a]=await Promise.all([
+ async function ensureEdenredRecharge(accountRows:any[]){
+  const eden=accountRows.find(a=>String(a.name).toLowerCase()==='edenred')
+  if(!eden)return false
+  const today=new Date()
+  // Do not credit a future Friday. Before Friday, no automatic recharge for the current week.
+  if(today.getDay()!==0 && today.getDay()<5)return false
+  const friday=fridayOfWeek(today)
+  const fridayISO=isoLocal(friday)
+  if(eden.last_auto_recharge_date===fridayISO)return false
+
+  const recharge=Number(eden.weekly_recharge||328.47)
+  const newBalance=Number(eden.balance||0)+recharge
+  const{error:txError}=await supabase.from('transactions').insert({
+    account_id:eden.id,
+    type:'ingreso',
+    amount:recharge,
+    description:`Recarga automática Edenred - viernes ${fridayISO}`
+  })
+  if(txError)return false
+  const{error:updateError}=await supabase.from('accounts').update({
+    balance:newBalance,
+    last_auto_recharge_date:fridayISO
+  }).eq('id',eden.id)
+  return !updateError
+ }
+
+ async function load(skipAuto=false){
+  const[c,t,i,a,tr]=await Promise.all([
    supabase.from('credit_cards').select('*').order('name'),
    supabase.from('card_transactions').select('*,credit_cards(name)').order('occurred_at',{ascending:false}).limit(150),
    supabase.from('installments').select('*,credit_cards(name)').order('start_date',{ascending:false}),
-   supabase.from('accounts').select('*').order('name')
+   supabase.from('accounts').select('*').order('name'),
+   supabase.from('transactions').select('*,accounts(name)').order('created_at',{ascending:false}).limit(250)
   ])
-  setCards(c.data||[]);setCtx(t.data||[]);setInst(i.data||[]);setAccounts(a.data||[])
+  const accountRows=a.data||[]
+  if(!skipAuto && await ensureEdenredRecharge(accountRows)){
+    return load(true)
+  }
+  setCards(c.data||[]);setCtx(t.data||[]);setInst(i.data||[]);setAccounts(accountRows);setTransactions(tr.data||[])
  }
 
  useEffect(()=>{load()},[])
@@ -58,7 +105,17 @@ export default function Page(){
  const totalAvail=cards.reduce((s,c)=>s+Number(c.available_credit ?? Math.max(0,Number(c.credit_limit)-Number(c.current_balance||0))),0)
  const totalFav=cards.reduce((s,c)=>s+Number(c.favorable_balance||0),0)
  const monthly=inst.reduce((s,i)=>s+(Number(i.paid_months)<Number(i.months)?Number(i.total_amount)/Number(i.months):0),0)
- const cash=accounts.reduce((s,a)=>s+Number(a.balance||0),0)
+ const bankCash=accounts.filter(a=>a.account_type!=='voucher').reduce((s,a)=>s+Number(a.balance||0),0)
+ const edenred=accounts.find(a=>String(a.name).toLowerCase()==='edenred')
+ const edenredBalance=Number(edenred?.balance||0)
+
+ const monday=isoLocal(mondayOfWeek())
+ const foodSpent=transactions
+   .filter(t=>String(t.accounts?.name||'').toLowerCase()==='edenred' && t.type==='gasto' && String(t.created_at).slice(0,10)>=monday)
+   .reduce((s,t)=>s+Number(t.amount||0),0)
+ const foodBudget=Number(edenred?.weekly_food_budget||300)
+ const foodRemaining=Math.max(0,foodBudget-foodSpent)
+ const expectedWeeklyExcess=Number(edenred?.weekly_recharge||328.47)-foodBudget
 
  const estimatedPayment=(c:any)=>{
    if(String(c.name).toLowerCase().includes('bbva')) return null
@@ -68,18 +125,30 @@ export default function Page(){
  return <AuthGate>
   <h1>💳 Finanzas</h1>
   <div className="grid">
-   <div className="card"><span className="muted">Dinero disponible</span><div className="kpi">{money(cash)}</div></div>
+   <div className="card"><span className="muted">Dinero disponible</span><div className="kpi">{money(bankCash)}</div><small>BBVA ahorro + Nu</small></div>
+   <div className="card"><span className="muted">Saldo Edenred</span><div className="kpi">{money(edenredBalance)}</div><small>Vales, separado del efectivo</small></div>
    <div className="card"><span className="muted">Deuda tarjetas</span><div className="kpi">{money(totalDebt)}</div></div>
    <div className="card"><span className="muted">Crédito disponible</span><div className="kpi">{money(totalAvail)}</div></div>
-   <div className="card"><span className="muted">Saldos a favor en tarjetas</span><div className="kpi">{money(totalFav)}</div></div>
+   <div className="card"><span className="muted">Saldos a favor tarjetas</span><div className="kpi">{money(totalFav)}</div></div>
    <div className="card"><span className="muted">MSI mensuales</span><div className="kpi">{money(monthly)}</div></div>
   </div>
 
   <div className="card section">
+   <h3>🍽️ Edenred · control semanal</h3>
+   <div className="grid">
+    <div><span className="muted">Recarga cada viernes</span><div className="kpi">{money(edenred?.weekly_recharge||328.47)}</div></div>
+    <div><span className="muted">Presupuesto comida</span><div className="kpi">{money(foodBudget)}</div></div>
+    <div><span className="muted">Gastado esta semana</span><div className="kpi">{money(foodSpent)}</div></div>
+    <div><span className="muted">Comida restante</span><div className="kpi">{money(foodRemaining)}</div></div>
+    <div><span className="muted">Excedente mínimo semanal</span><div className="kpi">{money(expectedWeeklyExcess)}</div><small>Permanece acumulado en Edenred</small></div>
+   </div>
+   <p className="muted">La recarga de {money(edenred?.weekly_recharge||328.47)} se registra automáticamente una vez por semana al abrir la app después de la recarga del viernes. El saldo acumulado no se mezcla con BBVA ahorro ni Nu.</p>
+  </div>
+
+  <div className="card section">
    <h3>🏦 Cuentas y dinero disponible</h3>
-   <div className="table-wrap"><table><thead><tr><th>Cuenta</th><th>Saldo disponible</th></tr></thead><tbody>
-    {accounts.length===0?<tr><td colSpan={2}>Sin cuentas registradas.</td></tr>:accounts.map(a=><tr key={a.id}><td><b>{a.name}</b></td><td>{money(a.balance)}</td></tr>)}
-    <tr><td><b>Total disponible</b></td><td><b>{money(cash)}</b></td></tr>
+   <div className="table-wrap"><table><thead><tr><th>Cuenta</th><th>Tipo</th><th>Saldo disponible</th></tr></thead><tbody>
+    {accounts.length===0?<tr><td colSpan={3}>Sin cuentas registradas.</td></tr>:accounts.map(a=><tr key={a.id}><td><b>{a.name}</b></td><td>{a.account_type==='voucher'?'Vales':'Cuenta'}</td><td>{money(a.balance)}</td></tr>)}
    </tbody></table></div>
    <div className="form-row" style={{marginTop:16}}>
     <select className="input" value={account} onChange={e=>setAccount(e.target.value)}><option value="">Selecciona cuenta</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>

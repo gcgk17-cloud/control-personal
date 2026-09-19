@@ -1,0 +1,13 @@
+FINANZAS V5 - EDENRED
+
+1) Ejecuta en Supabase: supabase/finanzas_v5_edenred.sql
+2) Sube el proyecto completo a GitHub.
+3) Edenred queda como cuenta de vales, separada de BBVA ahorro y Nu.
+4) Regla Edenred:
+   - Recarga: $328.47 cada viernes.
+   - Presupuesto comida: $300.00 por semana.
+   - Excedente mínimo: $28.47 por semana.
+   - El excedente permanece acumulado en Edenred.
+5) Al abrir Finanzas después de la recarga del viernes, la app registra una sola recarga semanal automáticamente.
+6) Los gastos registrados contra Edenred descuentan su saldo y el presupuesto semanal de comida.
+7) El saldo inicial de Edenred queda en $0 porque todavía no se proporcionó el saldo real actual.
