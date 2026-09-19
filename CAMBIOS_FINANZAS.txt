@@ -1,0 +1,14 @@
+CONTROL PERSONAL — CAMBIOS FINANZAS
+
+1) Ejecuta UNA VEZ: supabase/finanzas_v2.sql
+2) Sube esta carpeta completa a GitHub.
+3) Espera Vercel Ready.
+
+El SQL:
+- NO borra tus datos.
+- Agrega saldo actual, saldo al corte, disponible, pago mínimo, pago para no generar intereses y saldo a favor.
+- Crea historial de movimientos de tarjeta.
+- Carga Oro BBVA con el último corte confirmado (22/08/2026) como SALDO BASE.
+- Los gastos/pagos posteriores deben registrarse como movimientos para llegar al saldo actual.
+
+No se cargaron cifras inventadas de Liverpool/Mercado Pago ni capturas posteriores que no están disponibles en este chat.

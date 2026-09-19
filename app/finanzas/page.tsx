@@ -1,3 +1,62 @@
 'use client'
-import {useEffect,useState} from 'react';import AuthGate from '@/components/AuthGate';import {supabase} from '@/lib/supabase'
-const money=(n:number)=>n.toLocaleString('es-MX',{style:'currency',currency:'MXN'});export default function Page(){const[accounts,setAccounts]=useState<any[]>([]),[tx,setTx]=useState<any[]>([]),[cards,setCards]=useState<any[]>([]),[inst,setInst]=useState<any[]>([]),[name,setName]=useState(''),[balance,setBalance]=useState(''),[account,setAccount]=useState(''),[type,setType]=useState('gasto'),[amount,setAmount]=useState(''),[desc,setDesc]=useState(''),[cardName,setCardName]=useState(''),[limit,setLimit]=useState(''),[cut,setCut]=useState(''),[pay,setPay]=useState(''),[card,setCard]=useState(''),[idesc,setIdesc]=useState(''),[itotal,setItotal]=useState(''),[months,setMonths]=useState('3'),[msg,setMsg]=useState('');async function load(){const[a,t,c,i]=await Promise.all([supabase.from('accounts').select('*').order('name'),supabase.from('transactions').select('*,accounts(name)').order('occurred_at',{ascending:false}).limit(100),supabase.from('credit_cards').select('*').order('name'),supabase.from('installments').select('*,credit_cards(name)').order('start_date',{ascending:false})]);setAccounts(a.data||[]);setTx(t.data||[]);setCards(c.data||[]);setInst(i.data||[])}useEffect(()=>{load()},[]);async function addAccount(){if(!name)return;const{error}=await supabase.from('accounts').insert({name,balance:+balance||0});setMsg(error?error.message:'✓ Cuenta agregada');if(!error){setName('');setBalance('');load()}}async function addTx(){if(!account||+amount<=0)return setMsg('Selecciona cuenta y monto.');const{error}=await supabase.from('transactions').insert({account_id:account,type,amount:+amount,description:desc});setMsg(error?error.message:'✓ Movimiento guardado');if(!error){setAmount('');setDesc('');load()}}async function addCard(){if(!cardName)return;const{error}=await supabase.from('credit_cards').insert({name:cardName,credit_limit:+limit||0,statement_day:+cut||null,payment_day:+pay||null});setMsg(error?error.message:'✓ Tarjeta agregada');if(!error){setCardName('');setLimit('');setCut('');setPay('');load()}}async function addInstallment(){if(!card||!idesc||+itotal<=0||+months<=0)return setMsg('Completa la compra MSI.');const{error}=await supabase.from('installments').insert({card_id:card,description:idesc,total_amount:+itotal,months:+months});setMsg(error?error.message:'✓ Compra MSI registrada');if(!error){setIdesc('');setItotal('');load()}}const cash=accounts.reduce((s,a)=>s+Number(a.balance||0),0)+tx.reduce((s,t)=>s+(t.type==='ingreso'?Number(t.amount):-Number(t.amount)),0);const debt=inst.reduce((s,i)=>s+Math.max(0,Number(i.total_amount)*(1-Number(i.paid_months)/Number(i.months))),0),monthly=inst.reduce((s,i)=>s+(Number(i.paid_months)<Number(i.months)?Number(i.total_amount)/Number(i.months):0),0);return <AuthGate><h1>💳 Finanzas</h1><div className="grid"><div className="card"><span className="muted">Disponible estimado</span><div className="kpi">{money(cash)}</div></div><div className="card"><span className="muted">Deuda MSI pendiente</span><div className="kpi">{money(debt)}</div></div><div className="card"><span className="muted">Mensualidades activas</span><div className="kpi">{money(monthly)}</div></div></div><div className="two"><div className="card section"><h3>Nueva cuenta</h3><div className="form-row"><input className="input" value={name} onChange={e=>setName(e.target.value)} placeholder="Cuenta / efectivo"/><input className="input" type="number" value={balance} onChange={e=>setBalance(e.target.value)} placeholder="Saldo inicial"/><button className="btn secondary" onClick={addAccount}>Agregar</button></div></div><div className="card section"><h3>Nueva tarjeta</h3><div className="form-row"><input className="input" value={cardName} onChange={e=>setCardName(e.target.value)} placeholder="Tarjeta"/><input className="input" type="number" value={limit} onChange={e=>setLimit(e.target.value)} placeholder="Límite"/><input className="input" type="number" value={cut} onChange={e=>setCut(e.target.value)} placeholder="Día corte"/><input className="input" type="number" value={pay} onChange={e=>setPay(e.target.value)} placeholder="Día pago"/><button className="btn secondary" onClick={addCard}>Agregar</button></div></div></div><div className="card section"><h3>Movimiento rápido</h3><div className="form-row"><select className="input" value={account} onChange={e=>setAccount(e.target.value)}><option value="">Selecciona cuenta</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select><select className="input" value={type} onChange={e=>setType(e.target.value)}><option value="gasto">Gasto</option><option value="ingreso">Ingreso</option></select><input className="input" type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="Monto"/><input className="input" value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Descripción"/><button className="btn" onClick={addTx}>Guardar</button></div></div><div className="card section"><h3>Compra a meses sin intereses</h3><div className="form-row"><select className="input" value={card} onChange={e=>setCard(e.target.value)}><option value="">Tarjeta</option>{cards.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select><input className="input" value={idesc} onChange={e=>setIdesc(e.target.value)} placeholder="Compra"/><input className="input" type="number" value={itotal} onChange={e=>setItotal(e.target.value)} placeholder="Total"/><select className="input" value={months} onChange={e=>setMonths(e.target.value)}>{[3,6,9,12,18,24].map(m=><option key={m} value={m}>{m} MSI</option>)}</select><div className="preview">{+itotal>0?`${money(+itotal/+months)} / mes`:'Mensualidad'}</div><button className="btn" onClick={addInstallment}>Registrar MSI</button></div>{msg&&<p className="status">{msg}</p>}</div>{cards.length>0&&<div className="card section"><h3>Tarjetas</h3><div className="table-wrap"><table><thead><tr><th>Tarjeta</th><th>Límite</th><th>MSI pendiente</th><th>Crédito estimado</th><th>Corte</th><th>Pago</th></tr></thead><tbody>{cards.map(c=>{const d=inst.filter(i=>i.card_id===c.id).reduce((s,i)=>s+Number(i.total_amount)*(1-Number(i.paid_months)/Number(i.months)),0);return <tr key={c.id}><td>{c.name}</td><td>{money(Number(c.credit_limit))}</td><td>{money(d)}</td><td>{money(Math.max(0,Number(c.credit_limit)-d))}</td><td>Día {c.statement_day??'—'}</td><td>Día {c.payment_day??'—'}</td></tr>})}</tbody></table></div></div>}<div className="card section"><h3>Movimientos recientes</h3><div className="table-wrap"><table><thead><tr><th>Fecha</th><th>Cuenta</th><th>Tipo</th><th>Descripción</th><th>Monto</th></tr></thead><tbody>{tx.map(x=><tr key={x.id}><td>{new Date(x.occurred_at).toLocaleDateString('es-MX')}</td><td>{x.accounts?.name||'—'}</td><td>{x.type}</td><td>{x.description||'—'}</td><td>{money(Number(x.amount))}</td></tr>)}</tbody></table></div></div></AuthGate>}
+import {useEffect,useState} from 'react'
+import AuthGate from '@/components/AuthGate'
+import {supabase} from '@/lib/supabase'
+const money=(n:number)=>Number(n||0).toLocaleString('es-MX',{style:'currency',currency:'MXN'})
+export default function Page(){
+ const[cards,setCards]=useState<any[]>([]),[ctx,setCtx]=useState<any[]>([]),[inst,setInst]=useState<any[]>([])
+ const[card,setCard]=useState(''),[kind,setKind]=useState('cargo'),[amount,setAmount]=useState(''),[desc,setDesc]=useState(''),[msg,setMsg]=useState('')
+ async function load(){
+  const[c,t,i]=await Promise.all([
+   supabase.from('credit_cards').select('*').order('name'),
+   supabase.from('card_transactions').select('*,credit_cards(name)').order('occurred_at',{ascending:false}).limit(150),
+   supabase.from('installments').select('*,credit_cards(name)').order('start_date',{ascending:false})
+  ])
+  setCards(c.data||[]);setCtx(t.data||[]);setInst(i.data||[])
+ }
+ useEffect(()=>{load()},[])
+ async function addMovement(){
+  if(!card||+amount<=0)return setMsg('Selecciona tarjeta y monto.')
+  const c=cards.find(x=>x.id===card); if(!c)return
+  const a=+amount
+  const delta=kind==='cargo'?a:-a
+  const newBalance=Math.max(0,Number(c.current_balance||0)+delta)
+  const favorable=Math.max(0,Number(c.favorable_balance||0)+(kind==='cargo'?-a:a)-Math.max(0,a-Number(c.current_balance||0)))
+  const available=Math.max(0,Number(c.credit_limit||0)-newBalance)
+  const{error}=await supabase.from('card_transactions').insert({card_id:card,type:kind,amount:a,description:desc})
+  if(error)return setMsg(error.message)
+  await supabase.from('credit_cards').update({current_balance:newBalance,available_credit:available,favorable_balance:favorable,last_updated:new Date().toISOString()}).eq('id',card)
+  setAmount('');setDesc('');setMsg('✓ Movimiento guardado');load()
+ }
+ const totalDebt=cards.reduce((s,c)=>s+Number(c.current_balance||0),0)
+ const totalAvail=cards.reduce((s,c)=>s+Number(c.available_credit ?? Math.max(0,Number(c.credit_limit)-Number(c.current_balance||0))),0)
+ const totalFav=cards.reduce((s,c)=>s+Number(c.favorable_balance||0),0)
+ const monthly=inst.reduce((s,i)=>s+(Number(i.paid_months)<Number(i.months)?Number(i.total_amount)/Number(i.months):0),0)
+ return <AuthGate>
+  <h1>💳 Finanzas</h1>
+  <div className="grid">
+   <div className="card"><span className="muted">Deuda tarjetas</span><div className="kpi">{money(totalDebt)}</div></div>
+   <div className="card"><span className="muted">Crédito disponible</span><div className="kpi">{money(totalAvail)}</div></div>
+   <div className="card"><span className="muted">Saldos a favor</span><div className="kpi">{money(totalFav)}</div></div>
+   <div className="card"><span className="muted">MSI mensuales</span><div className="kpi">{money(monthly)}</div></div>
+  </div>
+
+  <div className="card section"><h3>Registrar movimiento de tarjeta</h3>
+   <div className="form-row">
+    <select className="input" value={card} onChange={e=>setCard(e.target.value)}><option value="">Selecciona tarjeta</option>{cards.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
+    <select className="input" value={kind} onChange={e=>setKind(e.target.value)}><option value="cargo">Compra / cargo</option><option value="pago">Pago</option><option value="abono">Abono</option></select>
+    <input className="input" type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="Monto"/>
+    <input className="input" value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Descripción"/>
+    <button className="btn" onClick={addMovement}>Guardar</button>
+   </div>{msg&&<p className="status">{msg}</p>}
+  </div>
+
+  <div className="card section"><h3>Tarjetas</h3><div className="table-wrap"><table><thead><tr><th>Tarjeta</th><th>Límite</th><th>Deuda actual</th><th>Disponible</th><th>Saldo a favor</th><th>Último corte</th><th>Pago sin intereses</th></tr></thead><tbody>
+   {cards.map(c=><tr key={c.id}><td><b>{c.name}</b></td><td>{money(c.credit_limit)}</td><td>{money(c.current_balance)}</td><td>{money(c.available_credit ?? Number(c.credit_limit)-Number(c.current_balance))}</td><td>{money(c.favorable_balance)}</td><td>{c.statement_date?new Date(c.statement_date+'T12:00:00').toLocaleDateString('es-MX'):'—'}</td><td>{money(c.no_interest_payment)}</td></tr>)}
+  </tbody></table></div></div>
+
+  <div className="card section"><h3>Movimientos recientes de tarjetas</h3><div className="table-wrap"><table><thead><tr><th>Fecha</th><th>Tarjeta</th><th>Tipo</th><th>Descripción</th><th>Monto</th></tr></thead><tbody>
+   {ctx.length===0?<tr><td colSpan={5}>Sin movimientos posteriores cargados.</td></tr>:ctx.map(x=><tr key={x.id}><td>{new Date(x.occurred_at).toLocaleDateString('es-MX')}</td><td>{x.credit_cards?.name||'—'}</td><td>{x.type}</td><td>{x.description||'—'}</td><td>{money(x.amount)}</td></tr>)}
+  </tbody></table></div></div>
+ </AuthGate>
+}

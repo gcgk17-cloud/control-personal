@@ -38,10 +38,9 @@ export default function Page(){
  const income=monthTx.filter(x=>x.type==='ingreso').reduce((s,x)=>s+Number(x.amount),0)
  const expenses=monthTx.filter(x=>x.type==='gasto').reduce((s,x)=>s+Number(x.amount),0)
  const balance=income-expenses
- const debt=inst.reduce((s,i)=>s+Math.max(0,Number(i.total_amount)*(1-Number(i.paid_months)/Number(i.months))),0)
+ const debt=cards.reduce((s,c)=>s+Number(c.current_balance||0),0)
  const monthly=inst.reduce((s,i)=>s+(Number(i.paid_months)<Number(i.months)?Number(i.total_amount)/Number(i.months):0),0)
- const totalLimit=cards.reduce((s,c)=>s+Number(c.credit_limit||0),0)
- const credit=Math.max(0,totalLimit-debt)
+ const credit=cards.reduce((s,c)=>s+Number(c.available_credit ?? Math.max(0,Number(c.credit_limit||0)-Number(c.current_balance||0))),0)
  const nextPay=cards.filter(c=>c.payment_day).sort((a,b)=>Number(a.payment_day)-Number(b.payment_day))[0]
  const kcal=meals.reduce((s,x)=>s+Number(x.calories||0),0)
  const runKm=runs.reduce((s,x)=>s+Number(x.distance_km||0),0)
