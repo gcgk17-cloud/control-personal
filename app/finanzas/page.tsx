@@ -104,7 +104,7 @@ export default function Page(){
  const totalDebt=cards.reduce((s,c)=>s+Number(c.current_balance||0),0)
  const totalAvail=cards.reduce((s,c)=>s+Number(c.available_credit ?? Math.max(0,Number(c.credit_limit)-Number(c.current_balance||0))),0)
  const totalFav=cards.reduce((s,c)=>s+Number(c.favorable_balance||0),0)
- const monthly=inst.reduce((s,i)=>s+(Number(i.paid_months)<Number(i.months)?Number(i.total_amount)/Number(i.months):0),0)
+ const monthly=inst.reduce((s,i)=>s+(Number(i.paid_months)<Number(i.months)?Number(i.monthly_payment||Number(i.total_amount)/Number(i.months)):0),0)
  const bankCash=accounts.filter(a=>a.account_type!=='voucher').reduce((s,a)=>s+Number(a.balance||0),0)
  const edenred=accounts.find(a=>String(a.name).toLowerCase()==='edenred')
  const edenredBalance=Number(edenred?.balance||0)
@@ -117,10 +117,9 @@ export default function Page(){
  const foodRemaining=Math.max(0,foodBudget-foodSpent)
  const expectedWeeklyExcess=Number(edenred?.weekly_recharge||328.47)-foodBudget
 
- const estimatedPayment=(c:any)=>{
-   if(String(c.name).toLowerCase().includes('bbva')) return null
-   return Number(c.no_interest_payment||0)
- }
+ const estimatedPayment=(c:any)=>Number(c.no_interest_payment||0)
+ const activeInst=inst.filter(i=>Number(i.paid_months)<Number(i.months))
+ const msiPending=activeInst.reduce((s,i)=>s+Number(i.pending_balance ?? Number(i.total_amount)*(1-Number(i.paid_months)/Number(i.months))),0)
 
  return <AuthGate>
   <h1>💳 Finanzas</h1>
@@ -131,6 +130,7 @@ export default function Page(){
    <div className="card"><span className="muted">Crédito disponible</span><div className="kpi">{money(totalAvail)}</div></div>
    <div className="card"><span className="muted">Saldos a favor tarjetas</span><div className="kpi">{money(totalFav)}</div></div>
    <div className="card"><span className="muted">MSI mensuales</span><div className="kpi">{money(monthly)}</div></div>
+   <div className="card"><span className="muted">Saldo pendiente MSI</span><div className="kpi">{money(msiPending)}</div></div>
   </div>
 
   <div className="card section">
@@ -170,7 +170,11 @@ export default function Page(){
   </div>
 
   <div className="card section"><h3>Tarjetas</h3><div className="table-wrap"><table><thead><tr><th>Tarjeta</th><th>Límite</th><th>Deuda actual</th><th>Disponible</th><th>Saldo a favor</th><th>Próximo pago estimado</th><th>Fecha límite</th></tr></thead><tbody>
-   {cards.map(c=><tr key={c.id}><td><b>{c.name}</b></td><td>{money(c.credit_limit)}</td><td>{money(c.current_balance)}</td><td>{money(c.available_credit ?? Number(c.credit_limit)-Number(c.current_balance))}</td><td>{money(c.favorable_balance)}</td><td>{estimatedPayment(c)===null?'Pendiente de calcular':money(estimatedPayment(c)!)}</td><td>{dateMX(c.due_date)}</td></tr>)}
+   {cards.map(c=><tr key={c.id}><td><b>{c.name}</b></td><td>{money(c.credit_limit)}</td><td>{money(c.current_balance)}</td><td>{money(c.available_credit ?? Number(c.credit_limit)-Number(c.current_balance))}</td><td>{money(c.favorable_balance)}</td><td>{money(estimatedPayment(c))}</td><td>{dateMX(c.due_date)}</td></tr>)}
+  </tbody></table></div></div>
+
+  <div className="card section"><h3>📆 Compras a meses sin intereses</h3><div className="table-wrap"><table><thead><tr><th>Tarjeta</th><th>Compra</th><th>Pago mensual</th><th>Avance</th><th>Saldo pendiente</th></tr></thead><tbody>
+   {activeInst.length===0?<tr><td colSpan={5}>Sin MSI activos.</td></tr>:activeInst.map(i=><tr key={i.id}><td><b>{i.credit_cards?.name||'—'}</b></td><td>{i.description}</td><td>{money(i.monthly_payment||Number(i.total_amount)/Number(i.months))}</td><td>{i.paid_months} de {i.months}</td><td>{money(i.pending_balance ?? Number(i.total_amount)*(1-Number(i.paid_months)/Number(i.months)))}</td></tr>)}
   </tbody></table></div></div>
 
   <div className="card section"><h3>Movimientos recientes de tarjetas</h3><div className="table-wrap"><table><thead><tr><th>Fecha</th><th>Tarjeta</th><th>Tipo</th><th>Descripción</th><th>Monto</th></tr></thead><tbody>

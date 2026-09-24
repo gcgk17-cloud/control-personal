@@ -1,0 +1,1 @@
+Ejecuta supabase/finanzas_v6_bbva_corte_sep2026.sql y después sube el proyecto completo a GitHub.
