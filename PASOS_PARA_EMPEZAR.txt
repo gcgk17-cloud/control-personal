@@ -1,0 +1,20 @@
+CONTROL PERSONAL - PASOS PARA EMPEZAR A LLEVAR EL CONTROL
+
+1. Supabase > SQL Editor: ejecutar supabase/finanzas_control_completo.sql.
+2. Subir esta carpeta completa a GitHub. Vercel desplegará automáticamente.
+3. En Finanzas, cargar el saldo REAL actual de:
+   - BBVA - Cuenta de ahorro
+   - Nu - Cuenta
+   - Edenred (si ya tiene saldo acumulado)
+   Usa Ingreso/depósito para llevar cada cuenta desde $0 al saldo real.
+4. Desde ese punto registrar cada movimiento nuevo:
+   - Compra con tarjeta -> Registrar movimiento de tarjeta / Compra-cargo.
+   - Pago a tarjeta -> Pago o Abono.
+   - Entrada a BBVA/Nu -> Ingreso/depósito.
+   - Salida de BBVA/Nu -> Gasto/retiro.
+   - Compra con Edenred -> Cuenta Edenred / Gasto-retiro.
+5. Edenred: $328.47 cada viernes; presupuesto de comida $300; mínimo $28.47 queda acumulado.
+6. Liverpool y Mercado Pago ya quedan identificados con deuda, disponible y pago próximo.
+7. BBVA: no se recalcula el próximo pago hasta cargar sus movimientos del nuevo ciclo.
+
+IMPORTANTE: no vuelvas a ejecutar cargas manuales como movimientos si ya están reflejadas en el saldo inicial; evitarías duplicar importes.

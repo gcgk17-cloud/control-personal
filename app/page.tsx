@@ -33,7 +33,12 @@ export default function Page(){
  }
  useEffect(()=>{load()},[])
  const today=localDate(), plan=PLAN.find(x=>x[0]===today)
- const cash=accounts.reduce((s,a)=>s+Number(a.balance||0),0)+tx.reduce((s,x)=>s+(x.type==='ingreso'?Number(x.amount):-Number(x.amount)),0)
+ const bankAccounts=accounts.filter(a=>a.account_type!=='voucher')
+ const cash=bankAccounts.reduce((s,a)=>s+Number(a.balance||0),0)
+ const edenred=accounts.find(a=>String(a.name).toLowerCase()==='edenred')
+ const edenredBalance=Number(edenred?.balance||0)
+ const favorable=cards.reduce((s,c)=>s+Number(c.favorable_balance||0),0)
+ const upcoming=cards.reduce((s,c)=>s+(String(c.name).toLowerCase().includes('bbva')?0:Number(c.no_interest_payment||0)),0)
  const monthTx=tx.filter(x=>new Date(x.occurred_at)>=new Date(monthStart()))
  const income=monthTx.filter(x=>x.type==='ingreso').reduce((s,x)=>s+Number(x.amount),0)
  const expenses=monthTx.filter(x=>x.type==='gasto').reduce((s,x)=>s+Number(x.amount),0)
@@ -51,7 +56,7 @@ export default function Page(){
 
   <h3 className="section-title">💰 Dinero</h3>
   <div className="grid finance-grid">
-   <Link href="/finanzas" className="card kpi-card primary-kpi"><span className="muted">Dinero disponible</span><div className="kpi">{money(cash)}</div><small>Cuentas + movimientos registrados</small></Link>
+   <Link href="/finanzas" className="card kpi-card primary-kpi"><span className="muted">Dinero disponible</span><div className="kpi">{money(cash)}</div><small>BBVA ahorro + Nu</small></Link>
    <div className="card kpi-card"><span className="muted">Ingresos del mes</span><div className="kpi">{money(income)}</div><small>Mes actual</small></div>
    <div className="card kpi-card"><span className="muted">Gastos del mes</span><div className="kpi">{money(expenses)}</div><small>Mes actual</small></div>
    <div className="card kpi-card"><span className="muted">Balance del mes</span><div className="kpi">{money(balance)}</div><small>{balance>=0?'Ingresos mayores a gastos':'Gastos mayores a ingresos'}</small></div>
@@ -59,10 +64,12 @@ export default function Page(){
 
   <h3 className="section-title">💳 Tarjetas y compromisos</h3>
   <div className="grid">
-   <div className="card"><span className="muted">Deuda MSI pendiente</span><div className="kpi">{money(debt)}</div></div>
+   <div className="card"><span className="muted">Deuda total tarjetas</span><div className="kpi">{money(debt)}</div></div>
    <div className="card"><span className="muted">Compromiso MSI mensual</span><div className="kpi">{money(monthly)}</div></div>
    <div className="card"><span className="muted">Crédito estimado disponible</span><div className="kpi">{money(credit)}</div><small>Límites menos MSI pendientes</small></div>
-   <div className="card"><span className="muted">Próximo día de pago</span><div className="kpi">{nextPay?`Día ${nextPay.payment_day}`:'—'}</div><small>{nextPay?.name||'Sin tarjeta registrada'}</small></div>
+   <div className="card"><span className="muted">Pagos próximos conocidos</span><div className="kpi">{money(upcoming)}</div><small>Liverpool + Mercado Pago; BBVA pendiente</small></div>
+   <div className="card"><span className="muted">Saldos a favor</span><div className="kpi">{money(favorable)}</div><small>Tarjetas</small></div>
+   <div className="card"><span className="muted">Saldo Edenred</span><div className="kpi">{money(edenredBalance)}</div><small>Vales, separado del efectivo</small></div>
   </div>
 
   <h3 className="section-title">📍 Hoy</h3>
