@@ -120,6 +120,7 @@ export default function Page(){
  const estimatedPayment=(c:any)=>Number(c.no_interest_payment||0)
  const activeInst=inst.filter(i=>Number(i.paid_months)<Number(i.months))
  const msiPending=activeInst.reduce((s,i)=>s+Number(i.pending_balance ?? Number(i.total_amount)*(1-Number(i.paid_months)/Number(i.months))),0)
+ const pendingMsiByCard=(cardId:string)=>activeInst.filter(i=>i.card_id===cardId).reduce((s,i)=>s+Number(i.pending_balance ?? Number(i.total_amount)*(1-Number(i.paid_months)/Number(i.months))),0)
 
  return <AuthGate>
   <h1>💳 Finanzas</h1>
@@ -169,8 +170,8 @@ export default function Page(){
    </div>{msg&&<p className="status">{msg}</p>}
   </div>
 
-  <div className="card section"><h3>Tarjetas</h3><div className="table-wrap"><table><thead><tr><th>Tarjeta</th><th>Límite</th><th>Deuda actual</th><th>Disponible</th><th>Saldo a favor</th><th>Próximo pago estimado</th><th>Fecha límite</th></tr></thead><tbody>
-   {cards.map(c=><tr key={c.id}><td><b>{c.name}</b></td><td>{money(c.credit_limit)}</td><td>{money(c.current_balance)}</td><td>{money(c.available_credit ?? Number(c.credit_limit)-Number(c.current_balance))}</td><td>{money(c.favorable_balance)}</td><td>{money(estimatedPayment(c))}</td><td>{dateMX(c.due_date)}</td></tr>)}
+  <div className="card section"><h3>Tarjetas</h3><div className="table-wrap"><table><thead><tr><th>Tarjeta</th><th>Límite</th><th>Deuda actual</th><th>Pendiente a MSI</th><th>Disponible</th><th>Saldo a favor</th><th>Próximo pago estimado</th><th>Fecha límite</th></tr></thead><tbody>
+   {cards.map(c=><tr key={c.id}><td><b>{c.name}</b></td><td>{money(c.credit_limit)}</td><td>{money(c.current_balance)}</td><td>{pendingMsiByCard(c.id)>0?money(pendingMsiByCard(c.id)):'—'}</td><td>{money(c.available_credit ?? Number(c.credit_limit)-Number(c.current_balance))}</td><td>{money(c.favorable_balance)}</td><td>{money(estimatedPayment(c))}</td><td>{dateMX(c.due_date)}</td></tr>)}
   </tbody></table></div></div>
 
   <div className="card section"><h3>📆 Compras a meses sin intereses</h3><div className="table-wrap"><table><thead><tr><th>Tarjeta</th><th>Compra</th><th>Pago mensual</th><th>Avance</th><th>Saldo pendiente</th></tr></thead><tbody>
