@@ -1,0 +1,20 @@
+CONTROL PERSONAL - PWA
+
+No requiere SQL nuevo.
+
+1. Sube/reemplaza estos archivos en GitHub.
+2. Espera el despliegue de Vercel.
+3. Android/Chrome: abre la app > menú ⋮ > Agregar a pantalla principal / Instalar app.
+4. iPhone/Safari: abre la app > Compartir > Agregar a pantalla de inicio.
+
+Incluye:
+- manifest instalable
+- iconos 192/512 y maskable
+- service worker
+- modo standalone
+- navegación móvil inferior
+- botón central Registrar
+- adaptación para safe-area de iPhone
+- escritorio conserva Sidebar
+
+Nota: las notificaciones push se implementan en una siguiente etapa; esta versión deja lista la PWA instalable.
