@@ -140,7 +140,7 @@ export default function Page(){
   const available_credit=Math.max(0,credit_limit-current_balance)
   const{error}=await supabase.from('credit_cards').update({
     credit_limit,current_balance,available_credit,favorable_balance,no_interest_payment,
-    due_date:cardEdit.due_date||null,last_updated:new Date().toISOString()
+    statement_date:cardEdit.statement_date||null,due_date:cardEdit.due_date||null,last_updated:new Date().toISOString()
   }).eq('id',c.id)
   if(error)return setEditMsg(error.message)
   setEditingCard(null);setEditMsg('✓ Tarjeta actualizada');load(true)
@@ -198,6 +198,22 @@ export default function Page(){
  const activeInst=inst.filter(i=>Number(i.paid_months)<Number(i.months))
  const msiPending=activeInst.reduce((s,i)=>s+Number(i.pending_balance ?? Number(i.total_amount)*(1-Number(i.paid_months)/Number(i.months))),0)
  const pendingMsiByCard=(cardId:string)=>activeInst.filter(i=>i.card_id===cardId).reduce((s,i)=>s+Number(i.pending_balance ?? Number(i.total_amount)*(1-Number(i.paid_months)/Number(i.months))),0)
+
+ const nextCutAccumulated=(c:any)=>{
+  if(!c.statement_date)return 0
+  const cut=String(c.statement_date).slice(0,10)
+  const charges=ctx.filter(x=>x.card_id===c.id && x.type==='cargo' && String(x.occurred_at||'').slice(0,10)>cut)
+  return charges.reduce((sum,x)=>{
+    const text=String(x.description||'')
+    const m=text.match(/·\s*(\d+)\s*MSI/i)
+    if(m){
+      const months=Number(m[1])||1
+      const linked=inst.find(i=>i.card_id===c.id && String(i.description||'') && text.startsWith(String(i.description||'')))
+      return sum+Number(linked?.monthly_payment||Number(x.amount||0)/months)
+    }
+    return sum+Number(x.amount||0)
+  },0)
+ }
 
  return <AuthGate>
   <h1>💳 Finanzas</h1>
@@ -263,7 +279,7 @@ export default function Page(){
    <label className="field-label">Fecha límite<input className="input" type="date" value={newCard.due_date} onChange={e=>setNewCard({...newCard,due_date:e.target.value})}/></label>
    <button className="btn" onClick={addCard}>Guardar tarjeta</button>
   </div></div>}
-  <div className="table-wrap"><table><thead><tr><th>Tarjeta</th><th>Límite</th><th>Deuda actual</th><th>Pendiente a MSI</th><th>Disponible</th><th>Saldo a favor</th><th>Próximo pago estimado</th><th>Fecha límite</th><th>Acción</th></tr></thead><tbody>
+  <div className="table-wrap"><table><thead><tr><th>Tarjeta</th><th>Límite</th><th>Deuda actual</th><th>Pendiente a MSI</th><th>Disponible</th><th>Saldo a favor</th><th>Próximo pago estimado</th><th>Fecha de corte</th><th>Siguiente corte</th><th>Fecha límite</th><th>Acción</th></tr></thead><tbody>
    {cards.map(c=>{
     const editing=editingCard===c.id
     const availablePreview=editing?Math.max(0,Number(cardEdit.credit_limit||0)-Number(cardEdit.current_balance||0)):Number(c.available_credit ?? Number(c.credit_limit)-Number(c.current_balance))
@@ -274,11 +290,13 @@ export default function Page(){
      <td>{money(availablePreview)}</td>
      <td>{editing?<input className="input" type="number" step="0.01" value={cardEdit.favorable_balance??''} onChange={e=>setCardEdit({...cardEdit,favorable_balance:e.target.value})}/>:money(c.favorable_balance)}</td>
      <td>{editing?<input className="input" type="number" step="0.01" value={cardEdit.no_interest_payment??''} onChange={e=>setCardEdit({...cardEdit,no_interest_payment:e.target.value})}/>:money(estimatedPayment(c))}</td>
+     <td>{editing?<input className="input" type="date" value={cardEdit.statement_date??''} onChange={e=>setCardEdit({...cardEdit,statement_date:e.target.value})}/>:dateMX(c.statement_date)}</td>
+     <td><b>{c.statement_date?money(nextCutAccumulated(c)):'—'}</b></td>
      <td>{editing?<input className="input" type="date" value={cardEdit.due_date??''} onChange={e=>setCardEdit({...cardEdit,due_date:e.target.value})}/>:dateMX(c.due_date)}</td>
-     <td>{editing?<div style={{display:'flex',gap:8}}><button className="btn" onClick={()=>saveCardEdit(c)}>Guardar</button><button className="btn" onClick={()=>setEditingCard(null)}>Cancelar</button></div>:<div style={{display:'flex',gap:8}}><button className="btn" onClick={()=>{setEditMsg('');setEditingCard(c.id);setCardEdit({credit_limit:Number(c.credit_limit||0).toFixed(2),current_balance:Number(c.current_balance||0).toFixed(2),favorable_balance:Number(c.favorable_balance||0).toFixed(2),no_interest_payment:Number(c.no_interest_payment||0).toFixed(2),due_date:c.due_date?String(c.due_date).slice(0,10):''})}}>✏️ Editar</button><button className="btn danger" onClick={()=>deleteCard(c)}>🗑️</button></div>}</td>
+     <td>{editing?<div style={{display:'flex',gap:8}}><button className="btn" onClick={()=>saveCardEdit(c)}>Guardar</button><button className="btn" onClick={()=>setEditingCard(null)}>Cancelar</button></div>:<div style={{display:'flex',gap:8}}><button className="btn" onClick={()=>{setEditMsg('');setEditingCard(c.id);setCardEdit({credit_limit:Number(c.credit_limit||0).toFixed(2),current_balance:Number(c.current_balance||0).toFixed(2),favorable_balance:Number(c.favorable_balance||0).toFixed(2),no_interest_payment:Number(c.no_interest_payment||0).toFixed(2),statement_date:c.statement_date?String(c.statement_date).slice(0,10):'',due_date:c.due_date?String(c.due_date).slice(0,10):''})}}>✏️ Editar</button><button className="btn danger" onClick={()=>deleteCard(c)}>🗑️</button></div>}</td>
     </tr>
    })}
-  </tbody></table></div>{editMsg&&<p className="status">{editMsg}</p>}<p className="muted"><small>El crédito disponible se recalcula automáticamente. “Pendiente a MSI” se obtiene de las compras a meses para no perder el detalle de cada compra.</small></p></div>
+  </tbody></table></div>{editMsg&&<p className="status">{editMsg}</p>}<p className="muted"><small>El crédito disponible se recalcula automáticamente. “Pendiente a MSI” se obtiene de las compras a meses. “Siguiente corte” suma los cargos registrados después de la fecha de corte; en compras MSI usa la mensualidad, no el total de la compra.</small></p></div>
 
   <div className="card section"><h3>📆 Compras a meses sin intereses</h3><div className="table-wrap"><table><thead><tr><th>Tarjeta</th><th>Compra</th><th>Pago mensual</th><th>Avance</th><th>Saldo pendiente</th></tr></thead><tbody>
    {activeInst.length===0?<tr><td colSpan={5}>Sin MSI activos.</td></tr>:activeInst.map(i=><tr key={i.id}><td><b>{i.credit_cards?.name||'—'}</b></td><td>{i.description}</td><td>{money(i.monthly_payment||Number(i.total_amount)/Number(i.months))}</td><td>{i.paid_months} de {i.months}</td><td>{money(i.pending_balance ?? Number(i.total_amount)*(1-Number(i.paid_months)/Number(i.months)))}</td></tr>)}

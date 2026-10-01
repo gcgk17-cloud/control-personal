@@ -1,0 +1,15 @@
+CONTROL PERSONAL · ALIMENTOS + SIGUIENTE CORTE
+
+1) Reemplaza/sube los archivos del ZIP a GitHub.
+2) En Supabase > SQL Editor ejecuta:
+   supabase/alimentacion_10000.sql
+3) Después ejecuta:
+   supabase/finanzas_v8_siguiente_corte.sql
+
+Cambios:
+- Catálogo de Alimentación ampliado a 10,000 opciones.
+- Búsqueda remota para no cargar todo el catálogo al abrir.
+- Finanzas muestra Fecha de corte y Siguiente corte por tarjeta.
+- Siguiente corte se calcula con cargos posteriores al último corte.
+- Una compra MSI posterior al corte aporta su mensualidad al cálculo, no el total.
+- La fecha de corte se puede editar desde la tabla de tarjetas.
