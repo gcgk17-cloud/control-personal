@@ -29,6 +29,9 @@ export default function Page(){
  const[transactions,setTransactions]=useState<any[]>([])
  const[card,setCard]=useState(''),[kind,setKind]=useState('cargo'),[amount,setAmount]=useState(''),[desc,setDesc]=useState(''),[msg,setMsg]=useState('')
  const[account,setAccount]=useState(''),[accountKind,setAccountKind]=useState('ingreso'),[accountAmount,setAccountAmount]=useState(''),[accountDesc,setAccountDesc]=useState(''),[accountMsg,setAccountMsg]=useState('')
+ const[editingAccount,setEditingAccount]=useState<string|null>(null),[accountEdit,setAccountEdit]=useState<any>({})
+ const[editingCard,setEditingCard]=useState<string|null>(null),[cardEdit,setCardEdit]=useState<any>({})
+ const[editMsg,setEditMsg]=useState('')
 
  async function ensureEdenredRecharge(accountRows:any[]){
   const eden=accountRows.find(a=>String(a.name).toLowerCase()==='edenred')
@@ -90,6 +93,29 @@ export default function Page(){
   setAmount('');setDesc('');setMsg('✓ Movimiento guardado');load()
  }
 
+ async function saveAccountEdit(id:string){
+  const balance=Number(accountEdit.balance)
+  if(!Number.isFinite(balance)||balance<0)return setEditMsg('El saldo debe ser un número válido.')
+  const{error}=await supabase.from('accounts').update({balance}).eq('id',id)
+  if(error)return setEditMsg(error.message)
+  setEditingAccount(null);setEditMsg('✓ Cuenta actualizada');load(true)
+ }
+
+ async function saveCardEdit(c:any){
+  const credit_limit=Number(cardEdit.credit_limit)
+  const current_balance=Number(cardEdit.current_balance)
+  const favorable_balance=Number(cardEdit.favorable_balance)
+  const no_interest_payment=Number(cardEdit.no_interest_payment)
+  if([credit_limit,current_balance,favorable_balance,no_interest_payment].some(v=>!Number.isFinite(v)||v<0))return setEditMsg('Revisa los importes de la tarjeta.')
+  const available_credit=Math.max(0,credit_limit-current_balance)
+  const{error}=await supabase.from('credit_cards').update({
+    credit_limit,current_balance,available_credit,favorable_balance,no_interest_payment,
+    due_date:cardEdit.due_date||null,last_updated:new Date().toISOString()
+  }).eq('id',c.id)
+  if(error)return setEditMsg(error.message)
+  setEditingCard(null);setEditMsg('✓ Tarjeta actualizada');load(true)
+ }
+
  async function addAccountMovement(){
   if(!account||+accountAmount<=0)return setAccountMsg('Selecciona cuenta y monto.')
   const a=accounts.find(x=>x.id===account); if(!a)return
@@ -148,8 +174,11 @@ export default function Page(){
 
   <div className="card section">
    <h3>🏦 Cuentas y dinero disponible</h3>
-   <div className="table-wrap"><table><thead><tr><th>Cuenta</th><th>Tipo</th><th>Saldo disponible</th></tr></thead><tbody>
-    {accounts.length===0?<tr><td colSpan={3}>Sin cuentas registradas.</td></tr>:accounts.map(a=><tr key={a.id}><td><b>{a.name}</b></td><td>{a.account_type==='voucher'?'Vales':'Cuenta'}</td><td>{money(a.balance)}</td></tr>)}
+   <div className="table-wrap"><table><thead><tr><th>Cuenta</th><th>Tipo</th><th>Saldo disponible</th><th>Acción</th></tr></thead><tbody>
+    {accounts.length===0?<tr><td colSpan={4}>Sin cuentas registradas.</td></tr>:accounts.map(a=>{
+      const editing=editingAccount===a.id
+      return <tr key={a.id}><td><b>{a.name}</b></td><td>{a.account_type==='voucher'?'Vales':'Cuenta'}</td><td>{editing?<input className="input" type="number" step="0.01" value={accountEdit.balance??''} onChange={e=>setAccountEdit({...accountEdit,balance:e.target.value})}/>:money(a.balance)}</td><td>{editing?<div style={{display:'flex',gap:8}}><button className="btn" onClick={()=>saveAccountEdit(a.id)}>Guardar</button><button className="btn" onClick={()=>setEditingAccount(null)}>Cancelar</button></div>:<button className="btn" onClick={()=>{setEditMsg('');setEditingAccount(a.id);setAccountEdit({balance:Number(a.balance||0).toFixed(2)})}}>✏️ Editar</button>}</td></tr>
+    })}
    </tbody></table></div>
    <div className="form-row" style={{marginTop:16}}>
     <select className="input" value={account} onChange={e=>setAccount(e.target.value)}><option value="">Selecciona cuenta</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>
@@ -170,9 +199,22 @@ export default function Page(){
    </div>{msg&&<p className="status">{msg}</p>}
   </div>
 
-  <div className="card section"><h3>Tarjetas</h3><div className="table-wrap"><table><thead><tr><th>Tarjeta</th><th>Límite</th><th>Deuda actual</th><th>Pendiente a MSI</th><th>Disponible</th><th>Saldo a favor</th><th>Próximo pago estimado</th><th>Fecha límite</th></tr></thead><tbody>
-   {cards.map(c=><tr key={c.id}><td><b>{c.name}</b></td><td>{money(c.credit_limit)}</td><td>{money(c.current_balance)}</td><td>{pendingMsiByCard(c.id)>0?money(pendingMsiByCard(c.id)):'—'}</td><td>{money(c.available_credit ?? Number(c.credit_limit)-Number(c.current_balance))}</td><td>{money(c.favorable_balance)}</td><td>{money(estimatedPayment(c))}</td><td>{dateMX(c.due_date)}</td></tr>)}
-  </tbody></table></div></div>
+  <div className="card section"><h3>Tarjetas</h3><div className="table-wrap"><table><thead><tr><th>Tarjeta</th><th>Límite</th><th>Deuda actual</th><th>Pendiente a MSI</th><th>Disponible</th><th>Saldo a favor</th><th>Próximo pago estimado</th><th>Fecha límite</th><th>Acción</th></tr></thead><tbody>
+   {cards.map(c=>{
+    const editing=editingCard===c.id
+    const availablePreview=editing?Math.max(0,Number(cardEdit.credit_limit||0)-Number(cardEdit.current_balance||0)):Number(c.available_credit ?? Number(c.credit_limit)-Number(c.current_balance))
+    return <tr key={c.id}><td><b>{c.name}</b></td>
+     <td>{editing?<input className="input" type="number" step="0.01" value={cardEdit.credit_limit??''} onChange={e=>setCardEdit({...cardEdit,credit_limit:e.target.value})}/>:money(c.credit_limit)}</td>
+     <td>{editing?<input className="input" type="number" step="0.01" value={cardEdit.current_balance??''} onChange={e=>setCardEdit({...cardEdit,current_balance:e.target.value})}/>:money(c.current_balance)}</td>
+     <td>{pendingMsiByCard(c.id)>0?money(pendingMsiByCard(c.id)):'—'}</td>
+     <td>{money(availablePreview)}</td>
+     <td>{editing?<input className="input" type="number" step="0.01" value={cardEdit.favorable_balance??''} onChange={e=>setCardEdit({...cardEdit,favorable_balance:e.target.value})}/>:money(c.favorable_balance)}</td>
+     <td>{editing?<input className="input" type="number" step="0.01" value={cardEdit.no_interest_payment??''} onChange={e=>setCardEdit({...cardEdit,no_interest_payment:e.target.value})}/>:money(estimatedPayment(c))}</td>
+     <td>{editing?<input className="input" type="date" value={cardEdit.due_date??''} onChange={e=>setCardEdit({...cardEdit,due_date:e.target.value})}/>:dateMX(c.due_date)}</td>
+     <td>{editing?<div style={{display:'flex',gap:8}}><button className="btn" onClick={()=>saveCardEdit(c)}>Guardar</button><button className="btn" onClick={()=>setEditingCard(null)}>Cancelar</button></div>:<button className="btn" onClick={()=>{setEditMsg('');setEditingCard(c.id);setCardEdit({credit_limit:Number(c.credit_limit||0).toFixed(2),current_balance:Number(c.current_balance||0).toFixed(2),favorable_balance:Number(c.favorable_balance||0).toFixed(2),no_interest_payment:Number(c.no_interest_payment||0).toFixed(2),due_date:c.due_date?String(c.due_date).slice(0,10):''})}}>✏️ Editar</button>}</td>
+    </tr>
+   })}
+  </tbody></table></div>{editMsg&&<p className="status">{editMsg}</p>}<p className="muted"><small>El crédito disponible se recalcula automáticamente. “Pendiente a MSI” se obtiene de las compras a meses para no perder el detalle de cada compra.</small></p></div>
 
   <div className="card section"><h3>📆 Compras a meses sin intereses</h3><div className="table-wrap"><table><thead><tr><th>Tarjeta</th><th>Compra</th><th>Pago mensual</th><th>Avance</th><th>Saldo pendiente</th></tr></thead><tbody>
    {activeInst.length===0?<tr><td colSpan={5}>Sin MSI activos.</td></tr>:activeInst.map(i=><tr key={i.id}><td><b>{i.credit_cards?.name||'—'}</b></td><td>{i.description}</td><td>{money(i.monthly_payment||Number(i.total_amount)/Number(i.months))}</td><td>{i.paid_months} de {i.months}</td><td>{money(i.pending_balance ?? Number(i.total_amount)*(1-Number(i.paid_months)/Number(i.months)))}</td></tr>)}
