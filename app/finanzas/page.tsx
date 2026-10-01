@@ -33,6 +33,8 @@ export default function Page(){
  const[editingCard,setEditingCard]=useState<string|null>(null),[cardEdit,setCardEdit]=useState<any>({})
  const[editMsg,setEditMsg]=useState('')
  const[showNewCard,setShowNewCard]=useState(false),[newCard,setNewCard]=useState<any>({name:'',credit_limit:'',current_balance:'0',favorable_balance:'0',no_interest_payment:'0',statement_date:'',due_date:''})
+ const[showNewAccount,setShowNewAccount]=useState(false),[newAccount,setNewAccount]=useState<any>({name:'',account_type:'bank',balance:'0'})
+ const[msiMonths,setMsiMonths]=useState(''),[msiDate,setMsiDate]=useState(isoLocal(new Date())),[msiMonthly,setMsiMonthly]=useState('')
 
  async function ensureEdenredRecharge(accountRows:any[]){
   const eden=accountRows.find(a=>String(a.name).toLowerCase()==='edenred')
@@ -82,16 +84,43 @@ export default function Page(){
   const c=cards.find(x=>x.id===card); if(!c)return
   const a=+amount, debt=Number(c.current_balance||0), fav=Number(c.favorable_balance||0)
   let newBalance=debt, newFav=fav
-  if(kind==='cargo'){
+  if(kind==='cargo'||kind==='msi'){
     const useFav=Math.min(fav,a); newFav=fav-useFav; newBalance=debt+(a-useFav)
-  }else{
+  }else if(kind==='pago'||kind==='abono'){
     const reduce=Math.min(debt,a); newBalance=debt-reduce; newFav=fav+(a-reduce)
+  }else if(kind==='ajuste'){
+    newBalance=a
+  }
+  if(kind==='msi'){
+    const months=Number(msiMonths)
+    if(!Number.isInteger(months)||months<=0)return setMsg('Indica un número válido de meses.')
+    const monthly=Number(msiMonthly)>0?Number(msiMonthly):a/months
+    const{error:iError}=await supabase.from('installments').insert({card_id:card,description:desc||'Compra a MSI',total_amount:a,months,paid_months:0,start_date:msiDate||isoLocal(new Date()),monthly_payment:monthly,pending_balance:a})
+    if(iError)return setMsg(iError.message)
   }
   const available=Math.max(0,Number(c.credit_limit||0)-newBalance)
-  const{error}=await supabase.from('card_transactions').insert({card_id:card,type:kind,amount:a,description:desc})
+  const txType=kind==='msi'?'cargo':kind
+  const{error}=await supabase.from('card_transactions').insert({card_id:card,type:txType,amount:a,description:kind==='msi'?`${desc||'Compra'} · ${msiMonths} MSI`:desc})
   if(error)return setMsg(error.message)
   await supabase.from('credit_cards').update({current_balance:newBalance,available_credit:available,favorable_balance:newFav,last_updated:new Date().toISOString()}).eq('id',card)
-  setAmount('');setDesc('');setMsg('✓ Movimiento guardado');load()
+  setAmount('');setDesc('');setMsiMonths('');setMsiMonthly('');setMsg(kind==='msi'?'✓ Compra a MSI registrada':'✓ Movimiento guardado');load()
+ }
+
+ async function addAccount(){
+  const name=String(newAccount.name||'').trim(), balance=Number(newAccount.balance||0)
+  if(!name)return setEditMsg('Escribe el nombre de la cuenta.')
+  if(!Number.isFinite(balance)||balance<0)return setEditMsg('Revisa el saldo inicial.')
+  const payload:any={name,balance,account_type:newAccount.account_type||'bank'}
+  if(payload.account_type==='voucher'){payload.weekly_recharge=0;payload.weekly_food_budget=0}
+  const{error}=await supabase.from('accounts').insert(payload)
+  if(error)return setEditMsg(error.message)
+  setNewAccount({name:'',account_type:'bank',balance:'0'});setShowNewAccount(false);setEditMsg('✓ Cuenta agregada');load(true)
+ }
+ async function deleteAccount(a:any){
+  if(!window.confirm(`¿Eliminar ${a.name}? Sus movimientos conservarán el historial si la relación está configurada con SET NULL.`))return
+  const{error}=await supabase.from('accounts').delete().eq('id',a.id)
+  if(error)return setEditMsg(error.message)
+  setEditMsg('✓ Cuenta eliminada');load(true)
  }
 
  async function saveAccountEdit(id:string){
@@ -195,11 +224,12 @@ export default function Page(){
   </div>
 
   <div className="card section">
-   <h3>🏦 Cuentas y dinero disponible</h3>
+   <div className="section-head"><h3>🏦 Cuentas y dinero disponible</h3><button className="btn" onClick={()=>setShowNewAccount(!showNewAccount)}>＋ Agregar cuenta</button></div>
+   {showNewAccount&&<div className="editor-panel"><div className="form-row"><input className="input" value={newAccount.name} onChange={e=>setNewAccount({...newAccount,name:e.target.value})} placeholder="Nombre de cuenta"/><select className="input" value={newAccount.account_type} onChange={e=>setNewAccount({...newAccount,account_type:e.target.value})}><option value="bank">Cuenta bancaria</option><option value="savings">Ahorro</option><option value="cash">Efectivo</option><option value="voucher">Vales</option><option value="other">Otro</option></select><input className="input" type="number" step="0.01" value={newAccount.balance} onChange={e=>setNewAccount({...newAccount,balance:e.target.value})} placeholder="Saldo inicial"/><button className="btn" onClick={addAccount}>Guardar cuenta</button></div></div>}
    <div className="table-wrap"><table><thead><tr><th>Cuenta</th><th>Tipo</th><th>Saldo disponible</th><th>Acción</th></tr></thead><tbody>
     {accounts.length===0?<tr><td colSpan={4}>Sin cuentas registradas.</td></tr>:accounts.map(a=>{
       const editing=editingAccount===a.id
-      return <tr key={a.id}><td><b>{a.name}</b></td><td>{a.account_type==='voucher'?'Vales':'Cuenta'}</td><td>{editing?<input className="input" type="number" step="0.01" value={accountEdit.balance??''} onChange={e=>setAccountEdit({...accountEdit,balance:e.target.value})}/>:money(a.balance)}</td><td>{editing?<div style={{display:'flex',gap:8}}><button className="btn" onClick={()=>saveAccountEdit(a.id)}>Guardar</button><button className="btn" onClick={()=>setEditingAccount(null)}>Cancelar</button></div>:<button className="btn" onClick={()=>{setEditMsg('');setEditingAccount(a.id);setAccountEdit({balance:Number(a.balance||0).toFixed(2)})}}>✏️ Editar</button>}</td></tr>
+      return <tr key={a.id}><td><b>{a.name}</b></td><td>{a.account_type==='voucher'?'Vales':'Cuenta'}</td><td>{editing?<input className="input" type="number" step="0.01" value={accountEdit.balance??''} onChange={e=>setAccountEdit({...accountEdit,balance:e.target.value})}/>:money(a.balance)}</td><td>{editing?<div style={{display:'flex',gap:8}}><button className="btn" onClick={()=>saveAccountEdit(a.id)}>Guardar</button><button className="btn secondary" onClick={()=>setEditingAccount(null)}>Cancelar</button></div>:<div style={{display:'flex',gap:8}}><button className="btn" onClick={()=>{setEditMsg('');setEditingAccount(a.id);setAccountEdit({balance:Number(a.balance||0).toFixed(2)})}}>✏️ Editar</button><button className="btn danger" onClick={()=>deleteAccount(a)}>🗑️</button></div>}</td></tr>
     })}
    </tbody></table></div>
    <div className="form-row" style={{marginTop:16}}>
@@ -214,11 +244,12 @@ export default function Page(){
   <div className="card section"><h3>Registrar movimiento de tarjeta</h3>
    <div className="form-row">
     <select className="input" value={card} onChange={e=>setCard(e.target.value)}><option value="">Selecciona tarjeta</option>{cards.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
-    <select className="input" value={kind} onChange={e=>setKind(e.target.value)}><option value="cargo">Compra / cargo</option><option value="pago">Pago</option><option value="abono">Abono</option></select>
-    <input className="input" type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="Monto"/>
+    <select className="input" value={kind} onChange={e=>setKind(e.target.value)}><option value="cargo">Compra / cargo</option><option value="msi">Compra a MSI</option><option value="pago">Pago</option><option value="abono">Abono</option><option value="ajuste">Ajustar deuda</option></select>
+    <input className="input" type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder={kind==='ajuste'?'Nueva deuda':'Monto'}/>
     <input className="input" value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Descripción"/>
+    {kind==='msi'&&<><input className="input" type="number" min="1" step="1" value={msiMonths} onChange={e=>setMsiMonths(e.target.value)} placeholder="Meses"/><input className="input" type="number" step="0.01" value={msiMonthly} onChange={e=>setMsiMonthly(e.target.value)} placeholder="Mensualidad (opcional)"/><input className="input" type="date" value={msiDate} onChange={e=>setMsiDate(e.target.value)}/></>}
     <button className="btn" onClick={addMovement}>Guardar</button>
-   </div>{msg&&<p className="status">{msg}</p>}
+   </div>{kind==='msi'&&+amount>0&&+msiMonths>0&&<p className="muted"><small>Mensualidad estimada: {money(Number(msiMonthly)>0?Number(msiMonthly):Number(amount)/Number(msiMonths))}. El total se suma a la deuda y al pendiente MSI.</small></p>}{msg&&<p className="status">{msg}</p>}
   </div>
 
   <div className="card section"><div className="section-head"><h3>Tarjetas</h3><button className="btn" onClick={()=>setShowNewCard(!showNewCard)}>＋ Agregar tarjeta</button></div>
