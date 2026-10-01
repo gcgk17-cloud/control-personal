@@ -38,44 +38,32 @@ export default function Page(){
  const income=monthTx.filter(x=>x.type==='ingreso').reduce((s,x)=>s+Number(x.amount),0)
  const expenses=monthTx.filter(x=>x.type==='gasto').reduce((s,x)=>s+Number(x.amount),0)
  const balance=income-expenses
- const debt=cards.reduce((s,c)=>s+Number(c.current_balance||0),0)
+ const upcoming=cards.filter(c=>c.due_date&&Number(c.no_interest_payment||0)>0).sort((a,b)=>String(a.due_date).localeCompare(String(b.due_date)))
+ const upcomingTotal=upcoming.reduce((s,c)=>s+Number(c.no_interest_payment||0),0)
  const monthly=inst.reduce((s,i)=>s+(Number(i.paid_months)<Number(i.months)?Number(i.monthly_payment||Number(i.total_amount)/Number(i.months)):0),0)
  const credit=cards.reduce((s,c)=>s+Number(c.available_credit ?? Math.max(0,Number(c.credit_limit||0)-Number(c.current_balance||0))),0)
- const nextPay=cards.filter(c=>c.payment_day).sort((a,b)=>Number(a.payment_day)-Number(b.payment_day))[0]
+ const nextPay=upcoming[0]
  const kcal=meals.reduce((s,x)=>s+Number(x.calories||0),0)
  const runKm=runs.reduce((s,x)=>s+Number(x.distance_km||0),0)
  const weight=weights[0]?Number(weights[0].weight_kg):null
  const weightDiff=weights.length>1 && weight!==null?weight-Number(weights[1].weight_kg):null
  return <AuthGate>
-  <div className="dash-head"><div><h1>🏠 Inicio</h1><p className="muted">Tu situación de hoy, con prioridad en dinero.</p></div><Link className="btn" href="/finanzas">Registrar movimiento</Link></div>
-
-  <h3 className="section-title">💰 Dinero</h3>
-  <div className="grid finance-grid">
-   <Link href="/finanzas" className="card kpi-card primary-kpi"><span className="muted">Dinero disponible</span><div className="kpi">{money(cash)}</div><small>Cuentas + movimientos registrados</small></Link>
-   <div className="card kpi-card"><span className="muted">Ingresos del mes</span><div className="kpi">{money(income)}</div><small>Mes actual</small></div>
-   <div className="card kpi-card"><span className="muted">Gastos del mes</span><div className="kpi">{money(expenses)}</div><small>Mes actual</small></div>
-   <div className="card kpi-card"><span className="muted">Balance del mes</span><div className="kpi">{money(balance)}</div><small>{balance>=0?'Ingresos mayores a gastos':'Gastos mayores a ingresos'}</small></div>
+  <div className="dash-head"><div><h1>🏠 Inicio</h1><p className="muted">Lo importante de hoy: dinero, próximos pagos y actividad.</p></div><div className="quick"><Link className="btn" href="/finanzas">＋ Registrar</Link><Link className="btn secondary" href="/agenda">📅 Agenda</Link></div></div>
+  <div className="hero-grid">
+   <Link href="/finanzas" className="card kpi-card primary-kpi"><span className="muted">💰 Dinero disponible</span><div className="kpi">{money(cash)}</div><small>Solo tus cuentas; no incluye crédito.</small></Link>
+   <Link href="/finanzas" className="card kpi-card"><span className="muted">📅 Próximos pagos</span><div className="kpi">{money(upcomingTotal)}</div><small>{upcoming.length} pago{upcoming.length===1?'':'s'} programado{upcoming.length===1?'':'s'}</small></Link>
+   <div className="card kpi-card"><span className="muted">💳 Crédito disponible</span><div className="kpi">{money(credit)}</div><small>Disponible total en tarjetas</small></div>
+   <div className="card kpi-card"><span className="muted">📊 Balance del mes</span><div className="kpi">{money(balance)}</div><small>{money(income)} ingresos · {money(expenses)} gastos</small></div>
   </div>
 
-  <h3 className="section-title">💳 Tarjetas y compromisos</h3>
-  <div className="grid">
-   <div className="card"><span className="muted">Deuda total tarjetas</span><div className="kpi">{money(debt)}</div></div>
-   <div className="card"><span className="muted">Compromiso MSI mensual</span><div className="kpi">{money(monthly)}</div></div>
-   <div className="card"><span className="muted">Crédito estimado disponible</span><div className="kpi">{money(credit)}</div><small>Crédito disponible de tus tarjetas</small></div>
-   <div className="card"><span className="muted">Próximo día de pago</span><div className="kpi">{nextPay?`Día ${nextPay.payment_day}`:'—'}</div><small>{nextPay?.name||'Sin tarjeta registrada'}</small></div>
+  <div className="two dashboard-columns">
+   <div className="card section"><div className="section-head"><h3>📅 Próximos pagos</h3><Link href="/finanzas" className="text-link">Ver finanzas →</Link></div>
+    <div className="payment-list">{upcoming.length===0?<p className="muted">No hay pagos próximos registrados.</p>:upcoming.slice(0,5).map(c=>{const due=new Date(String(c.due_date).slice(0,10)+'T12:00:00');const days=Math.ceil((due.getTime()-new Date().setHours(0,0,0,0))/86400000);return <div className="payment-row" key={c.id}><div><b>{c.name}</b><small>{days<0?'Vencido':days===0?'Vence hoy':`Vence en ${days} días`}</small></div><div className="payment-amount">{money(Number(c.no_interest_payment||0))}<small>{due.toLocaleDateString('es-MX')}</small></div></div>})}</div>
+   </div>
+   <div className="card section"><div className="section-head"><h3>📍 Hoy</h3><Link href="/agenda" className="text-link">Abrir agenda →</Link></div>
+    <div className="today-list"><Link href="/running"><span>🏃 Running</span><b>{plan?(plan[1]?`${runKm.toFixed(1)} / ${plan[1]} km`:plan[2]):`${runKm.toFixed(1)} km`}</b><small>{plan?plan[2]:'Sin plan'}</small></Link><Link href="/alimentacion"><span>🍎 Alimentación</span><b>{Math.round(kcal)} / {TARGET} kcal</b><small>{Math.max(0,Math.round(TARGET-kcal))} restantes</small></Link><Link href="/peso"><span>⚖️ Peso</span><b>{weight?`${weight.toFixed(1)} kg`:'—'}</b><small>{weightDiff===null?'Sin comparación':`${weightDiff>0?'+':''}${weightDiff.toFixed(1)} kg`}</small></Link><Link href="/gimnasio"><span>🏋️ Gimnasio</span><b>{gym.length?`${gym.length} registro${gym.length>1?'s':''}`:'Pendiente'}</b><small>Hoy</small></Link></div>
+   </div>
   </div>
-
-  <h3 className="section-title">📍 Hoy</h3>
-  <div className="grid">
-   <Link href="/alimentacion" className="card"><span className="muted">🍎 Alimentación</span><div className="kpi">{Math.round(kcal)} / {TARGET}</div><small>{Math.max(0,Math.round(TARGET-kcal))} kcal restantes</small></Link>
-   <Link href="/peso" className="card"><span className="muted">⚖️ Peso actual</span><div className="kpi">{weight?`${weight.toFixed(1)} kg`:'—'}</div><small>{weightDiff===null?'Sin comparación':`${weightDiff>0?'+':''}${weightDiff.toFixed(1)} kg vs. registro anterior`}</small></Link>
-   <Link href="/running" className="card"><span className="muted">🏃 Running</span><div className="kpi">{plan?`${runKm.toFixed(1)} / ${plan[1]} km`:`${runKm.toFixed(1)} km`}</div><small>{plan?plan[2]:'Sin plan para hoy'}</small></Link>
-   <Link href="/gimnasio" className="card"><span className="muted">🏋️ Gimnasio</span><div className="kpi">{gym.length}</div><small>{gym.length?'registros hoy':'Pendiente / sin registro'}</small></Link>
-  </div>
-
-  <div className="two">
-   <div className="card section"><h3>⚡ Accesos rápidos</h3><div className="quick"><Link className="btn" href="/finanzas">💳 Finanzas</Link><Link className="btn secondary" href="/alimentacion">🍎 Comida</Link><Link className="btn secondary" href="/running">🏃 Running</Link><Link className="btn secondary" href="/peso">⚖️ Peso</Link></div></div>
-   <div className="card section"><h3>Resumen financiero</h3><p><b>{cards.length}</b> tarjetas registradas</p><p><b>{inst.filter(i=>Number(i.paid_months)<Number(i.months)).length}</b> compras MSI activas</p><p className="muted">Los importes se actualizan con tus registros en Finanzas.</p></div>
-  </div>
+  <div className="card section"><div className="section-head"><h3>⚡ Accesos rápidos</h3><span className="muted">Control Personal</span></div><div className="quick"><Link className="btn" href="/finanzas">💳 Finanzas</Link><Link className="btn secondary" href="/agenda">📅 Agenda</Link><Link className="btn secondary" href="/alimentacion">🍎 Comida</Link><Link className="btn secondary" href="/running">🏃 Running</Link><Link className="btn secondary" href="/peso">⚖️ Peso</Link></div></div>
  </AuthGate>
 }

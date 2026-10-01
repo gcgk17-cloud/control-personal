@@ -32,6 +32,7 @@ export default function Page(){
  const[editingAccount,setEditingAccount]=useState<string|null>(null),[accountEdit,setAccountEdit]=useState<any>({})
  const[editingCard,setEditingCard]=useState<string|null>(null),[cardEdit,setCardEdit]=useState<any>({})
  const[editMsg,setEditMsg]=useState('')
+ const[showNewCard,setShowNewCard]=useState(false),[newCard,setNewCard]=useState<any>({name:'',credit_limit:'',current_balance:'0',favorable_balance:'0',no_interest_payment:'0',statement_date:'',due_date:''})
 
  async function ensureEdenredRecharge(accountRows:any[]){
   const eden=accountRows.find(a=>String(a.name).toLowerCase()==='edenred')
@@ -114,6 +115,27 @@ export default function Page(){
   }).eq('id',c.id)
   if(error)return setEditMsg(error.message)
   setEditingCard(null);setEditMsg('✓ Tarjeta actualizada');load(true)
+ }
+
+ async function addCard(){
+  const name=String(newCard.name||'').trim(), credit_limit=Number(newCard.credit_limit||0), current_balance=Number(newCard.current_balance||0)
+  const favorable_balance=Number(newCard.favorable_balance||0), no_interest_payment=Number(newCard.no_interest_payment||0)
+  if(!name)return setEditMsg('Escribe el nombre de la tarjeta.')
+  if([credit_limit,current_balance,favorable_balance,no_interest_payment].some(v=>!Number.isFinite(v)||v<0))return setEditMsg('Revisa los importes de la nueva tarjeta.')
+  const available_credit=Math.max(0,credit_limit-current_balance)
+  const payload:any={name,credit_limit,current_balance,available_credit,favorable_balance,no_interest_payment,last_updated:new Date().toISOString()}
+  if(newCard.statement_date)payload.statement_date=newCard.statement_date
+  if(newCard.due_date)payload.due_date=newCard.due_date
+  const{error}=await supabase.from('credit_cards').insert(payload)
+  if(error)return setEditMsg(error.message)
+  setNewCard({name:'',credit_limit:'',current_balance:'0',favorable_balance:'0',no_interest_payment:'0',statement_date:'',due_date:''});setShowNewCard(false);setEditMsg('✓ Tarjeta agregada');load(true)
+ }
+
+ async function deleteCard(c:any){
+  if(!window.confirm(`¿Eliminar ${c.name}? También se eliminarán sus MSI relacionados si la relación tiene borrado en cascada.`))return
+  const{error}=await supabase.from('credit_cards').delete().eq('id',c.id)
+  if(error)return setEditMsg(error.message)
+  setEditMsg('✓ Tarjeta eliminada');load(true)
  }
 
  async function addAccountMovement(){
@@ -199,7 +221,18 @@ export default function Page(){
    </div>{msg&&<p className="status">{msg}</p>}
   </div>
 
-  <div className="card section"><h3>Tarjetas</h3><div className="table-wrap"><table><thead><tr><th>Tarjeta</th><th>Límite</th><th>Deuda actual</th><th>Pendiente a MSI</th><th>Disponible</th><th>Saldo a favor</th><th>Próximo pago estimado</th><th>Fecha límite</th><th>Acción</th></tr></thead><tbody>
+  <div className="card section"><div className="section-head"><h3>Tarjetas</h3><button className="btn" onClick={()=>setShowNewCard(!showNewCard)}>＋ Agregar tarjeta</button></div>
+  {showNewCard&&<div className="editor-panel"><div className="form-row">
+   <input className="input" value={newCard.name} onChange={e=>setNewCard({...newCard,name:e.target.value})} placeholder="Nombre de tarjeta"/>
+   <input className="input" type="number" step="0.01" value={newCard.credit_limit} onChange={e=>setNewCard({...newCard,credit_limit:e.target.value})} placeholder="Límite"/>
+   <input className="input" type="number" step="0.01" value={newCard.current_balance} onChange={e=>setNewCard({...newCard,current_balance:e.target.value})} placeholder="Deuda actual"/>
+   <input className="input" type="number" step="0.01" value={newCard.favorable_balance} onChange={e=>setNewCard({...newCard,favorable_balance:e.target.value})} placeholder="Saldo a favor"/>
+   <input className="input" type="number" step="0.01" value={newCard.no_interest_payment} onChange={e=>setNewCard({...newCard,no_interest_payment:e.target.value})} placeholder="Próximo pago"/>
+   <label className="field-label">Corte<input className="input" type="date" value={newCard.statement_date} onChange={e=>setNewCard({...newCard,statement_date:e.target.value})}/></label>
+   <label className="field-label">Fecha límite<input className="input" type="date" value={newCard.due_date} onChange={e=>setNewCard({...newCard,due_date:e.target.value})}/></label>
+   <button className="btn" onClick={addCard}>Guardar tarjeta</button>
+  </div></div>}
+  <div className="table-wrap"><table><thead><tr><th>Tarjeta</th><th>Límite</th><th>Deuda actual</th><th>Pendiente a MSI</th><th>Disponible</th><th>Saldo a favor</th><th>Próximo pago estimado</th><th>Fecha límite</th><th>Acción</th></tr></thead><tbody>
    {cards.map(c=>{
     const editing=editingCard===c.id
     const availablePreview=editing?Math.max(0,Number(cardEdit.credit_limit||0)-Number(cardEdit.current_balance||0)):Number(c.available_credit ?? Number(c.credit_limit)-Number(c.current_balance))
@@ -211,7 +244,7 @@ export default function Page(){
      <td>{editing?<input className="input" type="number" step="0.01" value={cardEdit.favorable_balance??''} onChange={e=>setCardEdit({...cardEdit,favorable_balance:e.target.value})}/>:money(c.favorable_balance)}</td>
      <td>{editing?<input className="input" type="number" step="0.01" value={cardEdit.no_interest_payment??''} onChange={e=>setCardEdit({...cardEdit,no_interest_payment:e.target.value})}/>:money(estimatedPayment(c))}</td>
      <td>{editing?<input className="input" type="date" value={cardEdit.due_date??''} onChange={e=>setCardEdit({...cardEdit,due_date:e.target.value})}/>:dateMX(c.due_date)}</td>
-     <td>{editing?<div style={{display:'flex',gap:8}}><button className="btn" onClick={()=>saveCardEdit(c)}>Guardar</button><button className="btn" onClick={()=>setEditingCard(null)}>Cancelar</button></div>:<button className="btn" onClick={()=>{setEditMsg('');setEditingCard(c.id);setCardEdit({credit_limit:Number(c.credit_limit||0).toFixed(2),current_balance:Number(c.current_balance||0).toFixed(2),favorable_balance:Number(c.favorable_balance||0).toFixed(2),no_interest_payment:Number(c.no_interest_payment||0).toFixed(2),due_date:c.due_date?String(c.due_date).slice(0,10):''})}}>✏️ Editar</button>}</td>
+     <td>{editing?<div style={{display:'flex',gap:8}}><button className="btn" onClick={()=>saveCardEdit(c)}>Guardar</button><button className="btn" onClick={()=>setEditingCard(null)}>Cancelar</button></div>:<div style={{display:'flex',gap:8}}><button className="btn" onClick={()=>{setEditMsg('');setEditingCard(c.id);setCardEdit({credit_limit:Number(c.credit_limit||0).toFixed(2),current_balance:Number(c.current_balance||0).toFixed(2),favorable_balance:Number(c.favorable_balance||0).toFixed(2),no_interest_payment:Number(c.no_interest_payment||0).toFixed(2),due_date:c.due_date?String(c.due_date).slice(0,10):''})}}>✏️ Editar</button><button className="btn danger" onClick={()=>deleteCard(c)}>🗑️</button></div>}</td>
     </tr>
    })}
   </tbody></table></div>{editMsg&&<p className="status">{editMsg}</p>}<p className="muted"><small>El crédito disponible se recalcula automáticamente. “Pendiente a MSI” se obtiene de las compras a meses para no perder el detalle de cada compra.</small></p></div>
